@@ -1,10 +1,17 @@
+///
+/// Chess implementation in Rust
+///
+/// License: WTFPL
+///
 
+// Used for colored text output to the terminal
 extern crate colored;
-
 use colored::*;
 
+// Display trait
 use std::fmt;
 
+/// Piece type
 #[derive(Clone, PartialEq)]
 enum Piece {
     Pawn,
@@ -16,7 +23,7 @@ enum Piece {
     Nil,
 }
 
-
+/// Holds information about a game piece.
 #[derive(Clone)]
 struct GamePiece {
     has_moved: bool,
@@ -24,15 +31,30 @@ struct GamePiece {
 }
 
 impl GamePiece {
+    /// Standard new method
+    ///
+    /// Arguments:
+    ///
+    /// `piece_type`: Piece (enum)
     fn new(piece_type: Piece) -> Self {
         Self{
             has_moved: false,
             piece_type,
         }
     }
+
+    /// Mark the piece as moved
+    fn moved(&mut self) -> &Self {
+        self.has_moved = true;
+
+        self
+    }
 }
 
+// Implementation of fmt::Display for GamePiece
 impl fmt::Display for GamePiece {
+
+    /// Standard fmt method
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.piece_type)?;
 
@@ -41,8 +63,10 @@ impl fmt::Display for GamePiece {
 }
 
 
-// for println!
+// Implementation of fmt::Display
 impl fmt::Display for Piece {
+
+    /// Standard fmt method
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
         let _ = match *self {
@@ -59,6 +83,8 @@ impl fmt::Display for Piece {
     }
 }
 
+/// Holds the color of the piece (black or white)
+/// Nil is used for empty cells that have no pieces.
 #[derive(Clone)]
 enum Color {
     Black,
@@ -66,6 +92,7 @@ enum Color {
     Nil,
 }
 
+/// Cell holds the piece and its color.
 #[derive(Clone)]
 struct Cell {
     piece: GamePiece,
@@ -74,6 +101,8 @@ struct Cell {
 
 // for println!
 impl fmt::Display for Cell {
+
+    /// Standard fmt method
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
         let piece = self.piece.to_string();
@@ -88,15 +117,27 @@ impl fmt::Display for Cell {
     }
 }
 
-// Chess board
+
+/// Chess board, main interface to the game
+/// All board actions should be taken through the public functions.
+///
+/// Arguments:
+///
+/// `board`: Vec<Vec<Cell>>
+///
+/// Example:
+///
+/// See implementation for Self::new()
 struct Board {
+    /// Multidimensional vector holding the board cells.
     board: Vec<Vec<Cell>>,
 }
 
-//
 impl Board {
-    // Standard new method
+    /// Standard Self::new method
+    /// Return an empty chess board (no pieces placed anywhere).
     fn new() -> Board {
+        // Create board
         let mut board = Board{
             board: vec![vec![Cell{
                 piece: GamePiece::new(Piece::Nil),
@@ -104,7 +145,7 @@ impl Board {
             }; 8]; 8]
         };
 
-        // Pawns
+        // Place pawns
         for x in 0..8 {
             board.board[x][6] = Cell{
                 piece: GamePiece::new(Piece::Pawn),
@@ -117,7 +158,7 @@ impl Board {
             };
         }
 
-        // Rook
+        // Place rooks
         for x in &[7, 0] {
             board.board[*x][7] = Cell{
                 piece: GamePiece::new(Piece::Rook),
@@ -130,7 +171,7 @@ impl Board {
             };
         }
 
-        // Knight
+        // Place knights
         for x in &[6, 1] {
             board.board[*x][7] = Cell{
                 piece: GamePiece::new(Piece::Knight),
@@ -143,7 +184,7 @@ impl Board {
             };
         }
 
-        // Bishop
+        // Place bishops
         for x in &[5, 2] {
             board.board[*x][7] = Cell{
                 piece: GamePiece::new(Piece::Bishop),
@@ -156,7 +197,7 @@ impl Board {
             };
         }
 
-        // Queen
+        // Place queens
         board.board[3][7] = Cell{
             piece: GamePiece::new(Piece::Queen),
             color: Color::White,
@@ -167,7 +208,7 @@ impl Board {
             color: Color::Black,
         };
 
-        // King
+        // Place kings
         board.board[4][7] = Cell{
             piece: GamePiece::new(Piece::King),
             color: Color::White,
@@ -181,13 +222,21 @@ impl Board {
         board
     }
 
-    // Move piece
+    /// Move piece from one cell to another on the board.
+    ///
+    /// Arguments:
+    ///
+    /// `from`: tuple (2) of coordinates
+    /// `to`: tuple (2) of coordinates
+    ///
+    /// Return: std::Result<(), 'static str>
     fn move_piece(&mut self, from: (usize, usize), to: (usize, usize)) -> Result<(), &'static str> {
 
+        // Expand tuples
         let (f_x, f_y) = from;
         let (t_x, t_y) = to;
 
-        // check if piece exists
+        // Check if piece exists
         if self.board[f_x][f_y].piece.piece_type == Piece::Nil {
             return Err("This board cell is empty.");
         }
@@ -197,9 +246,12 @@ impl Board {
             return Err("The desintation cell is not empty.");
         }
 
-        // legal move
+        // Legal move
         else {
             self.board[t_x][t_y] = self.board[f_x][f_y].clone();
+
+            // Mark the piece as moved at least once
+            self.board[t_x][t_y].piece.moved();
 
             // Empty the from cell
             self.board[f_x][f_y] = Cell{
@@ -210,25 +262,6 @@ impl Board {
 
         Ok(())
     }
-
-    fn legal_move(&self, from: (usize, usize), to: (usize, usize)) -> bool {
-
-        let (f_x, f_y) = from;
-        let (t_x, t_y) = to;
-
-        let piece = &self.board[f_x][f_y].piece;
-
-        // let legal = match piece {
-        //     Piece::Pawn => {
-        //         return match piece.color {
-                    
-        //         }
-        //     }
-        // };
-
-        true
-    }
-
 }
 
 // for println!
