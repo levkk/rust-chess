@@ -11,6 +11,9 @@ use colored::*;
 // Display trait
 use std::fmt;
 
+// Ordering
+use std::cmp::Ordering;
+
 /// Piece type
 #[derive(Clone, PartialEq)]
 enum Piece {
@@ -241,10 +244,15 @@ impl Board {
             return Err("This board cell is empty.");
         }
 
-        // Check if destination cell is taken
-        else if self.board[t_x][t_y].piece.piece_type != Piece::Nil {
-            return Err("The desintation cell is not empty.");
+        // Check if move is valid
+        else if !self.validate_move(from, to, &self.board[f_x][f_y].piece) {
+            return Err("Illegal move.");
         }
+
+        // // Check if destination cell is taken
+        // else if self.board[t_x][t_y].piece.piece_type != Piece::Nil {
+        //     return Err("The desintation cell is not empty.");
+        // }
 
         // Legal move
         else {
@@ -261,6 +269,60 @@ impl Board {
         }
 
         Ok(())
+    }
+
+    fn validate_move(&self, from: (usize, usize), to: (usize, usize), piece: &GamePiece) -> bool {
+        let dx = match from.0.cmp(&to.0) {
+            Ordering::Less => to.0 - from.0,
+            Ordering::Greater => from.0 - to.0,
+            Ordering::Equal => 0,
+        };
+
+        let dy = match from.1.cmp(&to.1) {
+            Ordering::Less => to.1 - from.1,
+            Ordering::Greater => from.1 - to.1,
+            Ordering::Equal => 0,
+        };
+
+        match piece.piece_type {
+            Piece::Pawn => {
+                // The pawn has moved, it can only move one field forward.                                    
+                if piece.has_moved {
+                    return dx == 0 && dy == 1;                
+                }
+                // The pawn has not moved, so it can one field forward or two for an opening.                                    
+                else {
+                    return dx == 0 && (dy == 1 || dy == 2);
+                }
+            },
+
+            Piece::Rook => {
+                // Can only move on rows and columns, but not both ;)
+                return (dx == 0 && dy != 0) || (dx != 0 && dy == 0);
+            },
+
+            Piece::Knight => {
+                // The greek letter gamma (capital).
+                return (dx == 2 && dy == 1) || (dx == 1 && dy == 2);
+            },
+
+            Piece::Bishop => {
+                return dx == dy && dx != 0; // Only on a diagonal,
+            },
+
+            Piece::Queen => {
+                // Diagonally or on columns or rows.
+                return (dx == dy && dx != 0) || (dx == 0 && dy != 0) || (dx == 0 && dy != 0);
+            },
+
+            Piece::King => {
+                return dx == 1 || dy == 1;
+            },
+
+            Piece::Nil => {
+                return false; // Irrelevant.
+            }
+        }
     }
 }
 
@@ -294,6 +356,12 @@ fn main() {
 
     // Respond!
     match board.move_piece((4, 1), (4, 3)) {
+        Ok(_) => {},
+        Err(err) => println!("{}", err),
+    };
+
+    // Knight
+    match board.move_piece((1, 7), (2, 5)) {
         Ok(_) => {},
         Err(err) => println!("{}", err),
     };
