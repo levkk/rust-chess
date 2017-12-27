@@ -5,3 +5,5 @@ authors = ["Lev <lev.kokotov@gmail.com>"]
 
 [dependencies]
 colored = "1.6"
+regex = "0.2"
+lazy_static = "*"
