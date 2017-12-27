@@ -17,25 +17,22 @@ use game::Game;
 fn main() {
     let mut game = Game::new();
 
-    // Open
-    // match board.move_piece((4, 6), (4, 4)) {
-    //     Ok(_) => {},
-    //     Err(err) => println!("{}", err),
-    // };
+    match game.make_move("E2E4") {
+        Ok(_) => {},
+        Err(err) => println!("{}", err),
+    };
 
-    // // Respond!
-    // match board.move_piece((4, 1), (4, 3)) {
-    //     Ok(_) => {},
-    //     Err(err) => println!("{}", err),
-    // };
+    println!("\r\n{}\r\n", game);
 
-    // Knight
-    // match board.move_piece((1, 7), (2, 5)) {
-    //     Ok(_) => {},
-    //     Err(err) => println!("{}", err),
-    // };
+    match game.make_move("D7D5") {
+        Ok(_) => {},
+        Err(err) => println!("{}", err),
+    };
 
-    match game.make_move("B8C6") {
+    println!("\r\n{}\r\n", game);
+
+    // capture!
+    match game.make_move("E4D5") {
         Ok(_) => {},
         Err(err) => println!("{}", err),
     };

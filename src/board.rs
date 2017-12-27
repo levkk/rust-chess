@@ -67,10 +67,10 @@ impl fmt::Display for Piece {
         let _ = match *self {
             Piece::Pawn => write!(f, "P"),
             Piece::Rook => write!(f, "R"),
-            Piece::Knight => write!(f, "K"),
+            Piece::Knight => write!(f, "N"),
             Piece::Bishop => write!(f, "B"),
             Piece::Queen => write!(f, "Q"),
-            Piece::King => write!(f, "X"), // reX (in Latin)
+            Piece::King => write!(f, "K"),
             Piece::Nil => write!(f, " "),
         };
 
@@ -111,7 +111,6 @@ impl fmt::Display for Cell {
         Ok(())
     }
 }
-
 
 /// Chess board, main interface to the game
 /// All board actions should be taken through the public functions.
@@ -294,7 +293,7 @@ impl Board {
 
       match ALPHABET.iter().position(|&x| x == letter) {
         Some(x) => x,
-        None => panic!("letter_to_column: Unknown column given"),
+        None => panic!("letter_to_column: Unknown column given."),
       }
     }
 
@@ -349,13 +348,14 @@ impl Board {
 
         match piece.piece_type {
             Piece::Pawn => {
-                // The pawn has moved, it can only move one field forward.                                    
+                // The pawn has moved, it can only move one field forward.
+                // Or it can move one field diagonally if it captures another piece.                     
                 if piece.has_moved {
-                    return (dx == 0 && dy == 1) || (dx == 1 && dy == 1);                
+                    return (dx == 0 && dy == 1) || (dx == 1 && dy == 1 && self.has_piece(to));                
                 }
                 // The pawn has not moved, so it can one field forward or two for an opening.                                    
                 else {
-                    return (dx == 0 && (dy == 1 || dy == 2)) || (dx == 1 && dy == 1);
+                    return (dx == 0 && (dy == 1 || dy == 2)) || (dx == 1 && dy == 1 && self.has_piece(to));
                 }
             },
 
@@ -400,7 +400,6 @@ impl Board {
     /// `coord` tuple(2) of usize
     ///
     /// Return: bool (true if exists, else false)
-    #[allow(dead_code)]
     fn has_piece(&self, coord: (usize, usize)) -> bool {
         return self.board[coord.0][coord.1].piece.piece_type != Piece::Nil;
     }
