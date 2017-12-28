@@ -4,38 +4,35 @@
 /// License: WTFPL
 ///
 
+// Output color text to terminal
 extern crate colored;
-extern crate regex;
-#[macro_use] extern crate lazy_static;
 
+// Standard regex
+extern crate regex;
+
+// For lazy static references
+#[macro_use]
+extern crate lazy_static;
+
+// Serialization
+#[macro_use]
+extern crate serde_derive;
+
+extern crate serde;
+extern crate serde_json;
+
+// Modules
 mod board;
 mod game;
 
+// Game
 use game::Game;
 
-// let's do this
+// Let's do this
 fn main() {
-    let mut game = Game::new();
+  let mut game = Game::new();
 
-    match game.make_move("E2E4") {
-        Ok(_) => {},
-        Err(err) => println!("{}", err),
-    };
+  println!("{}", game.serialize());
 
-    println!("\r\n{}\r\n", game);
-
-    match game.make_move("D7D5") {
-        Ok(_) => {},
-        Err(err) => println!("{}", err),
-    };
-
-    println!("\r\n{}\r\n", game);
-
-    // capture!
-    match game.make_move("E4D5") {
-        Ok(_) => {},
-        Err(err) => println!("{}", err),
-    };
-
-    println!("\r\n{}\r\n", game);
+  game.start();
 }
