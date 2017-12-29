@@ -17,6 +17,8 @@ use std::io::{stdin, stdout, Write};
 
 // Game board
 use board::Board;
+use client::Client;
+use client::Message;
 
 /// Game
 ///
@@ -117,6 +119,7 @@ impl Game {
   /// Start the game
   pub fn start(&mut self) {
     let mut should_exit = false;
+    let mut client = Client::new("echo");
 
     println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
 
@@ -140,9 +143,12 @@ impl Game {
 
       if input == "exit" {
         should_exit = true;
+
+        client.send_message(Message::Bye, "");
       }
 
       else {
+        // Make move
         match self.make_move(&input) {
           Ok(_) => {},
           Err(err) => {
@@ -150,6 +156,21 @@ impl Game {
             println!("{}", input);
           }
         };
+
+        // Tell the other player about it
+        client.send_message(Message::MakeMove, &input);
+
+        // Wait for other player to make move
+        let other_player = client.receive_message();
+
+        // Make the move for them
+        match self.make_move(&other_player) {
+          Ok(_) => {},
+          Err(err) => {
+            println!("{}", err);
+            println!("{}", other_player);
+          }
+        }
       }
     }
   }

@@ -1,6 +1,4 @@
-//
-use std::net;
-use std::io;
+// Display
 use std::fmt;
 
 // Regex
@@ -8,10 +6,11 @@ extern crate regex;
 use regex::RegexSet;
 
 // Game
-use game::Game;
-use board::Color;
+// use board::Color;
 
-enum Message {
+use connection::{Connection, EchoConnection};
+
+pub enum Message {
   Bye,
   MakeMove,
 }
@@ -44,12 +43,12 @@ impl fmt::Display for MessageRegex {
 }
 
 // Client
-struct Client {
-  game: Game,
-  server: String,
-  connected: bool,
-  in_game: bool,
-  color: Color,
+pub struct Client {
+  // server: String,
+  connection: Box<Connection>, // Connection size is not known at compile time
+  // connected: bool,
+  // in_game: bool,
+  // color: Color,
 }
 
 impl Client {
@@ -58,48 +57,55 @@ impl Client {
   ///
   /// Parameters:
   /// `game`: Game (will take ownership)
-  pub fn new(game: Game, server: &str) -> Self {
+  pub fn new(server: &str) -> Self {
+    let connection: Box<Connection>;
+
+    if server.starts_with("echo") {
+      connection = Box::new(EchoConnection::new());
+    }
+
+    else {
+      connection = Box::new(EchoConnection::new());
+    }
+        
     Client{
-      game,
-      server: String::from(server),
-      connected: false,
-      in_game: false,
-      color: Color::Nil,
+      // server: String::from(server),
+      connection: connection,
+
+      // color: Color::Nil,
     }
   }
 
   ///
-  fn connect(&mut self) -> Result<net::TcpStream, io::Error> {
-    match net::TcpStream::connect(&self.server) {
-      Ok(stream) => {
-        self.connected = true;
+  pub fn send_message(&self, message: Message, payload: &str) {
+    let contents: String;
 
-        Ok(stream)
+    match message {
+      Message::Bye => {
+        contents = Message::Bye.to_string();
       },
-
-      Err(err) => {
-        println!("Could not connect to {}: {}", self.server, err);
-
-        Err(err)
-      },
+      
+      Message::MakeMove => {
+        contents = format!("{} {}", Message::MakeMove, payload);
+      }
     }
+
+    let _ = self.connection.send_message(&contents);
   }
 
   ///
-  // fn send_message(&self, stream: &mut net::TcpStream, message: Message, payload: &str) -> io::Result<usize>  {
-  //   match message {
-  //     Message::Bye => {
-  //       stream.write(&format!("{}", Message::Bye).as_bytes())
-  //     },
+  pub fn receive_message(&mut self) -> String {
+    // This will block until something arrives
+    // over the pipe. This may not always be what we want
+    // so we can use Connection::get_message() isntead.
+    let message = self.connection.wait_for_message().unwrap(); // TODO: Handle error
 
-  //     Message::MakeMove => {
-  //       stream.write(&format!("{} {}", Message::MakeMove, payload).as_bytes())
-  //     },
-  //   }
-  // }
+    // Handle the reply
+    self.handle_reply(&message).unwrap()
+  }
 
   ///
-  fn handle_reply(&mut self, message: &str) -> Result<(), String> {
+  fn handle_reply(&mut self, message: &str) -> Result<String, String> {
 
     lazy_static! {
       static ref MESSAGES: RegexSet =  RegexSet::new(&[
@@ -118,13 +124,10 @@ impl Client {
 
     match message_match {
       Some(&0) => {
-        Ok(())
+        Ok(String::from("exit"))
       },
       Some(&1) => {
-        match self.game.make_move(&message[10..]) { // The text after "make_move "
-          Ok(_) => Ok(()),
-          Err(err) => Err(String::from(err)),
-        }
+        Ok(String::from(&message[10..]))
       },
       Some(&_) => {
         Err(String::from("Got unhandled matched message."))
@@ -134,25 +137,16 @@ impl Client {
       },
     }
   }
-
-  ///
-  pub fn play(&mut self) {
-    if !self.connected {
-      let _stream = self.connect().unwrap();
-    }
-  }
 }
 
 #[cfg(test)]
 mod test {
 
   use client::Client;
-  use game::Game;
 
   #[test]
   fn test_messages() {
-
-    let mut client = Client::new(Game::new(), "test");
+    let mut client = Client::new("echo");
 
     match client.handle_reply("make_move") {
       Ok(_) => panic!("Not supposed to accept this message"),
@@ -160,12 +154,12 @@ mod test {
     };
 
     match client.handle_reply("make_move e2e4") {
-      Ok(_) => {},
+      Ok(input) => assert_eq!(input, "e2e4"),
       Err(err) => panic!("Made a valid move. {}", err),
     };
 
     match client.handle_reply("bye") {
-      Ok(_) => {},
+      Ok(input) => assert_eq!(input, "exit"),
       Err(err) => panic!("Valid good bye message. {}", err),
     };
   }

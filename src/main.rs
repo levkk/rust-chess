@@ -25,6 +25,7 @@ extern crate serde_json;
 mod board;
 mod game;
 mod client;
+mod connection;
 
 // Game
 use game::Game;
