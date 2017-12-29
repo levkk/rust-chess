@@ -84,7 +84,7 @@ impl fmt::Display for Piece {
 /// Holds the color of the piece (black or white)
 /// Nil is used for empty cells that have no pieces.
 #[derive(Clone, Serialize, Deserialize)]
-enum Color {
+pub enum Color {
   Black,
   White,
   Nil,
@@ -266,6 +266,7 @@ impl Board {
     Ok(())
   }
 
+  /// Calculate the discrete absolute derivative ( |d(to, from)| )
   fn d(from: (usize, usize), to: (usize, usize)) -> (usize, usize) {
     let dx = match from.0.cmp(&to.0) {
       Ordering::Less => to.0 - from.0,

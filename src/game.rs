@@ -10,6 +10,7 @@ use std::fmt;
 
 // Writing and reading files
 use std::fs::File;
+use std::io::prelude::*;
 
 // User input
 use std::io::{stdin, stdout, Write};
@@ -68,23 +69,49 @@ impl Game {
     }
   }
 
+  /// Serialize the game into JSON
   ///
+  /// Return: String
   fn serialize(&self) -> String {
     self.board.serialize()
   }
 
+  /// Deserialize the game from JSON
+  ///
+  /// Parameters:
+  /// `serialized`: &str, JSON string
   fn deserialize(&mut self, serialized: &str) {
     let board = serde_json::from_str(serialized).unwrap();
 
     self.board = board;
   }
 
-  pub fn save(&self) {
+  /// Save a game
+  /// `filename`: &str
+  pub fn save(&self, filename: &str) {
     let board = self.serialize();
 
-    let mut file File::create("save.json")?;
-    
-    file.write_all(&board)?;
+    let mut file = match File::create(filename) {
+      Ok(file) => file,
+      Err(err) => panic!("{}", err),
+    };
+
+    file.write_all(board.as_bytes()).expect("Could not save game");
+  }
+
+  /// Load a game
+  /// `filename`: &str
+  pub fn load(&mut self, filename: &str) {
+    let mut file = match File::open(filename) {
+      Ok(file) => file,
+      Err(err) => panic!("{}", err),
+    };
+
+    let mut contents = String::new();
+
+    file.read_to_string(&mut contents);
+
+    self.deserialize(&contents);
   }
 
   /// Start the game
@@ -122,7 +149,7 @@ impl Game {
             println!("{}", err);
             println!("{}", input);
           }
-        }
+        };
       }
     }
   }
@@ -138,4 +165,23 @@ impl fmt::Display for Game {
     Ok(())
   }
 
+}
+
+#[cfg(test)]
+mod test {
+  // Game
+  use game::Game;
+
+  #[test]
+  fn test_save_load() {
+    let mut game = Game::new();
+
+    let _ = game.make_move("e2e4");
+
+    let _ = game.save("test.json");
+
+    let mut game2 = Game::new();
+
+    let _ = game2.load("test.json");
+  }
 }

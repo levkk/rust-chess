@@ -24,6 +24,7 @@ extern crate serde_json;
 // Modules
 mod board;
 mod game;
+mod client;
 
 // Game
 use game::Game;
@@ -31,8 +32,6 @@ use game::Game;
 // Let's do this
 fn main() {
   let mut game = Game::new();
-
-  println!("{}", game.serialize());
 
   game.start();
 }

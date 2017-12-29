@@ -2,12 +2,20 @@
 
 Implementation of chess in Rust.
 
-## Missing Features
-- Validation of game rules for the movement of pieces.
-  - ~~Make sure the pieces can execute the given moves.~~
-  - Check for collisions.
-- Ability to interact with the game: controls of pieces uses keyboard shortcuts / mouse / command input.
+## Build & Run
+```
+$ cargo run
+```
 
-## Wanted Features
-- Graphical user interface
-- Networking for multiplayer gaming
+## Features
+- Validation of moves using basic chess rules.
+- Gameplay using chess notation (e.g. e2e4 moves any piece from e2 to e4)
+- Saving/loading to/from JSON.
+
+## Missing Features
+- Collision checking for validation of moves.
+- GUI
+- Multiplayer (over a network)
+  - Client
+  - Server
+  - HTTP client/server for NATed players
