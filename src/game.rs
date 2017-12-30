@@ -111,7 +111,10 @@ impl Game {
 
     let mut contents = String::new();
 
-    file.read_to_string(&mut contents);
+    match file.read_to_string(&mut contents) {
+      Ok(_) => (),
+      Err(err) => panic!("Game > Load Could not read to string: {}", err),
+    };
 
     self.deserialize(&contents);
   }

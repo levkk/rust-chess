@@ -1,5 +1,5 @@
 [package]
-name = "game"
+name = "rust_chess"
 version = "0.1.0"
 authors = ["Lev <lev.kokotov@gmail.com>"]
 

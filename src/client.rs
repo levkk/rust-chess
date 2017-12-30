@@ -16,6 +16,7 @@ pub enum Message {
 }
 
 impl fmt::Display for Message {
+  //
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     let _ = match *self {
       Message::Bye => write!(f, "bye"),
@@ -32,6 +33,7 @@ enum MessageRegex {
 }
 
 impl fmt::Display for MessageRegex {
+  //
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     let _ = match *self {
       MessageRegex::Bye => write!(f, r"{}", Message::Bye),
@@ -77,7 +79,7 @@ impl Client {
   }
 
   ///
-  pub fn send_message(&self, message: Message, payload: &str) {
+  pub fn send_message(&mut self, message: Message, payload: &str) {
     let contents: String;
 
     match message {
@@ -150,7 +152,7 @@ mod test {
 
     match client.handle_reply("make_move") {
       Ok(_) => panic!("Not supposed to accept this message"),
-      Err(err) => {},
+      Err(_) => (),
     };
 
     match client.handle_reply("make_move e2e4") {
