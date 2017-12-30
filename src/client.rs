@@ -96,7 +96,7 @@ impl Client {
   }
 
   ///
-  pub fn receive_message(&mut self) -> String {
+  pub fn wait_for_message(&mut self) -> String {
     // This will block until something arrives
     // over the pipe. This may not always be what we want
     // so we can use Connection::get_message() isntead.

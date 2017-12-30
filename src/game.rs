@@ -164,7 +164,7 @@ impl Game {
         client.send_message(Message::MakeMove, &input);
 
         // Wait for other player to make move
-        let other_player = client.receive_message();
+        let other_player = client.wait_for_message();
 
         // Make the move for them
         match self.make_move(&other_player) {
