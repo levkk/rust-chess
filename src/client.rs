@@ -1,6 +1,3 @@
-// Display
-use std::fmt;
-
 // Regex
 extern crate regex;
 use regex::RegexSet;
@@ -8,41 +5,12 @@ use regex::RegexSet;
 // Game
 // use board::Color;
 
-use connection::{Connection, EchoConnection};
+use connection::{
+  Connection, EchoConnection, TcpConnection
+};
 
-pub enum Message {
-  Bye,
-  MakeMove,
-}
-
-impl fmt::Display for Message {
-  //
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    let _ = match *self {
-      Message::Bye => write!(f, "bye"),
-      Message::MakeMove => write!(f, "make_move"),
-    };
-
-    Ok(())
-  }
-}
-
-enum MessageRegex {
-  Bye,
-  MakeMove,
-}
-
-impl fmt::Display for MessageRegex {
-  //
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    let _ = match *self {
-      MessageRegex::Bye => write!(f, r"{}", Message::Bye),
-      MessageRegex::MakeMove => write!(f, r"{} [A-Ha-h][1-8][A-Ha-h][1-8]", Message::MakeMove),
-    };
-
-    Ok(())
-  }
-}
+// Messages and Regexes
+use protocol::{Message, MessageRegex};
 
 // Client
 pub struct Client {
@@ -59,11 +27,20 @@ impl Client {
   ///
   /// Parameters:
   /// `game`: Game (will take ownership)
-  pub fn new(server: &str) -> Self {
+  pub fn new(server: &str) -> Client {
     let connection: Box<Connection>;
 
     if server.starts_with("echo") {
       connection = Box::new(EchoConnection::new());
+    }
+
+    else if server.starts_with("tcp://") {
+      let tcp_connection = match TcpConnection::new(&server[6..]) {
+        Ok(conn) => conn,
+        Err(err) => panic!("Could not connect to server: {}", err),
+      };
+
+      connection = Box::new(tcp_connection);
     }
 
     else {
@@ -78,25 +55,63 @@ impl Client {
     }
   }
 
+  /// Host a peer-to-peer game.
   ///
-  pub fn send_message(&mut self, message: Message, payload: &str) {
-    let contents: String;
+  /// Parameters:
+  /// `addr`: &str Properly formatted address, e.g. tcp://0.0.0.0:54345
+  pub fn host(addr: &str) -> Client {
+    let connection: Box<Connection>;
 
-    match message {
-      Message::Bye => {
-        contents = Message::Bye.to_string();
+    // TCP
+    if addr.starts_with("tcp://") {
+      let listener = match TcpConnection::host(&addr[6..]) {
+        Ok(conn) => conn,
+        Err(err) => panic!("Could not create server: {}",  err),
+      };
+
+      connection = Box::new(listener);
+    }
+
+    // Dummy echo
+    else {
+      connection = Box::new(EchoConnection::new());
+    }
+
+    Client{
+      connection,
+    }
+  }
+
+  /// Send a message to the remote peer
+  ///
+  /// Parameters:
+  /// `message`: Message type
+  /// `payload`: &str, UTF-8 formatted
+  pub fn send_message(&mut self, message: Message, payload: &str) {
+
+    let contents = match message {
+      Message::Hello => {
+        format!("{} {}", Message::Hello, payload)
       },
+
+      Message::Bye => {
+        Message::Bye.to_string()
+      },
+
+      Message::BadMessage => {
+        format!("{} {}", Message::BadMessage, payload)
+      }
       
       Message::MakeMove => {
-        contents = format!("{} {}", Message::MakeMove, payload);
-      }
-    }
+        format!("{} {}", Message::MakeMove, payload)
+      },
+    };
 
     let _ = self.connection.send_message(&contents);
   }
 
-  ///
-  pub fn wait_for_message(&mut self) -> String {
+  /// Wait for answer from peer and block until it arrives.
+  pub fn wait_for_message(&mut self) -> (Message, String) {
     // This will block until something arrives
     // over the pipe. This may not always be what we want
     // so we can use Connection::get_message() isntead.
@@ -106,18 +121,23 @@ impl Client {
     self.handle_reply(&message).unwrap()
   }
 
+  /// Handles peer reply
   ///
-  fn handle_reply(&mut self, message: &str) -> Result<String, String> {
+  /// Parameters:
+  /// `message`: &str reply from peer
+  fn handle_reply(&mut self, message: &str) -> Result<(Message, String), String> {
 
     lazy_static! {
       static ref MESSAGES: RegexSet =  RegexSet::new(&[
         MessageRegex::Bye.to_string(),
         MessageRegex::MakeMove.to_string(),
+        MessageRegex::Hello.to_string(),
       ]).unwrap();
     }
     
     let matches: Vec<usize> = MESSAGES.matches(message).into_iter().collect();
 
+    // Should match only one message    
     if matches.len() != 1 {
       return Err(format!("Unknown message received: {}", message));
     }
@@ -126,14 +146,21 @@ impl Client {
 
     match message_match {
       Some(&0) => {
-        Ok(String::from("exit"))
+        Ok((Message::Bye, String::from("exit")))
       },
+
       Some(&1) => {
-        Ok(String::from(&message[10..]))
+        Ok((Message::MakeMove, String::from(&message[10..])))
       },
+
+      Some(&2) => {
+        Ok((Message::Hello, String::from(&message[6..])))
+      },
+
       Some(&_) => {
-        Err(String::from("Got unhandled matched message."))
+        panic!("Client > Handle reply : Received valid message that is not handled by client.");
       },
+      
       None => {
         Err(String::from("Got message matching nothing."))
       },
@@ -145,24 +172,36 @@ impl Client {
 mod test {
 
   use client::Client;
+  use protocol::*;
 
+  // Test regex handling of replies
   #[test]
   fn test_messages() {
+    // Create a dummy client
     let mut client = Client::new("echo");
 
-    match client.handle_reply("make_move") {
+    // Message missing payload
+    match client.handle_reply(&Message::MakeMove.to_string()) {
       Ok(_) => panic!("Not supposed to accept this message"),
       Err(_) => (),
     };
 
-    match client.handle_reply("make_move e2e4") {
-      Ok(input) => assert_eq!(input, "e2e4"),
+    // Good message with payload
+    match client.handle_reply(&format!("{} e2e4", Message::MakeMove)) {
+      Ok(input) => assert_eq!(input.1, "e2e4"),
       Err(err) => panic!("Made a valid move. {}", err),
     };
 
-    match client.handle_reply("bye") {
-      Ok(input) => assert_eq!(input, "exit"),
+    // Good message with no payload
+    match client.handle_reply(&Message::Bye.to_string()) {
+      Ok(input) => assert_eq!(input.1, "exit"),
       Err(err) => panic!("Valid good bye message. {}", err),
+    };
+
+    // Bad message with payload
+    match client.handle_reply(&format!("{} random_text", Message::Bye)) {
+      Ok(msg) => panic!("Not supposed to accept this message: {}", msg.0),
+      Err(_) => (),
     };
   }
 }

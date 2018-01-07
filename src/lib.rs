@@ -19,7 +19,9 @@ extern crate serde_json;
 pub mod board;
 pub mod game;
 pub mod client;
+pub mod protocol;
 pub mod connection;
+pub mod helpers;
 
 use game::Game;
 

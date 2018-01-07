@@ -18,7 +18,10 @@ use std::io::{stdin, stdout, Write};
 // Game board
 use board::Board;
 use client::Client;
-use client::Message;
+use protocol::Message;
+
+// Helpers
+use helpers;
 
 /// Game
 ///
@@ -122,27 +125,18 @@ impl Game {
   /// Start the game
   pub fn start(&mut self) {
     let mut should_exit = false;
-    let mut client = Client::new("echo");
+    let mut client = Client::new("tcp://127.0.0.1:54345");
 
     println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
+
+
 
     while !should_exit {
       println!("\n\r{}\n\r", self);
 
       print!(" > ");
 
-      let _ = stdout().flush();
-      let mut input = String::new();
-      stdin().read_line(&mut input).expect("read_line");
-
-      // Remove trailing new line chars
-      if let Some('\n') = input.chars().next_back() {
-        input.pop();
-      }
-
-      if let Some('\r') = input.chars().next_back() {
-        input.pop();
-      }
+      let input = helpers::input();
 
       if input == "exit" {
         should_exit = true;
@@ -164,14 +158,14 @@ impl Game {
         client.send_message(Message::MakeMove, &input);
 
         // Wait for other player to make move
-        let other_player = client.wait_for_message();
+        let (msg_type, msg_payload) = client.wait_for_message();
 
         // Make the move for them
-        match self.make_move(&other_player) {
+        match self.make_move(&msg_payload) {
           Ok(_) => {},
           Err(err) => {
             println!("{}", err);
-            println!("{}", other_player);
+            println!("{}", &msg_payload);
           }
         }
       }

@@ -82,6 +82,27 @@ impl TcpConnection {
       },
     }
   }
+
+  ///
+  pub fn host(host: &str) -> Result<TcpConnection, String> {
+    // Create a listening socket
+    let listener = match net::TcpListener::bind(host) {
+      Ok(listener) => listener,
+      Err(err) => panic!("Connection > Host could not bind to address: {}, {}", host, err),
+    };
+
+    // Wait for the other player to connect
+    println!("Waiting for the other player to connect...");
+
+    let (stream, addr) = match listener.accept() {
+      Ok((stream, addr)) => (stream, addr),
+      Err(err) => panic!("TcpConnection > Host could not accept: {}", err),
+    };
+
+    println!("Client connected from: {}", addr);
+
+    Ok(TcpConnection{stream})
+  }
 }
 
 impl Connection for TcpConnection {
