@@ -9,6 +9,12 @@ use std::str;
 //Display
 use std::fmt;
 
+// Input
+use helpers::input;
+
+// Protocol
+use protocol::Message;
+
 /// Connection interface
 pub trait Connection {
   fn send_message(&mut self, message: &str) -> bool;
@@ -146,7 +152,7 @@ impl Connection for TcpConnection {
       println!("TcpConnection > Got message: {}", String::from_utf8_lossy(&buffer));
 
       // If we receive an empty message, usually the connection is terminated.
-      if buffer.len() == 0 {
+      if buffer[0] as char == '\0' {
         break;
       }
     }
@@ -163,6 +169,46 @@ impl Connection for TcpConnection {
     Ok(String::from(""))
   }
 }
+
+
+/// Local player
+pub struct SelfConnection {
+
+}
+
+impl SelfConnection {
+  pub fn new() -> SelfConnection {
+    SelfConnection{}
+  }
+}
+
+impl Connection for SelfConnection {
+
+  /// Ignore the message
+  fn send_message(&mut self, _message: &str) -> bool {
+    true
+  }
+
+  fn wait_for_message(&mut self) -> Result<String, String> {
+    print!(" Other player > ");
+
+    let value = input();
+
+    if value == "exit" {
+      Ok(Message::Bye.to_string())
+    }
+    
+    else {
+      Ok(format!("{} {}", Message::MakeMove, value))
+    }
+  }
+
+  fn get_message(&self) -> Result<String, String> {
+    Ok(String::from("Nothing"))
+  }
+}
+
+
 
 #[cfg(test)]
 mod tests {

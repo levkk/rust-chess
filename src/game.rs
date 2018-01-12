@@ -12,9 +12,6 @@ use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 
-// User input
-use std::io::{stdin, stdout, Write};
-
 // Game board
 use board::Board;
 use client::Client;
@@ -35,7 +32,7 @@ impl Game {
   /// Create a new game
   ///
   /// Return: Game
-  pub fn new() -> Self {
+  pub fn new() -> Game {
     let board = Board::new();
 
     Game{
@@ -124,16 +121,49 @@ impl Game {
 
   /// Start the game
   pub fn start(&mut self) {
-    let mut should_exit = false;
-    let mut client = Client::new("tcp://127.0.0.1:54345");
+    print!(" Client > ");
+
+    let mut client = match helpers::input().as_ref() {
+      "client" => self.build_tcp_client(),
+      "host" => self.build_tcp_host(),
+      "self" => Client::new("self"),
+      other => panic!("Unknown client chosen: {}", other),
+    };
 
     println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
 
-
-
-    while !should_exit {
+    loop {
       println!("\n\r{}\n\r", self);
 
+      if client.host {
+        if self.other_player_turn(&mut client) {
+          break;
+        }
+
+        // Loop until a valid move is made or we exit
+        if self.my_turn(&mut client) {
+          break;
+        }
+      }
+
+      else {
+        // Loop until a valid move is made or we exit
+        if self.my_turn(&mut client) {
+          break;
+        }
+
+        if self.other_player_turn(&mut client) {
+          break;
+        }
+      }
+    }
+  }
+
+  fn my_turn(&mut self, client: &mut Client) -> bool {
+    // Loop until a valid move is made or we exit
+    let mut should_exit = false;
+
+    loop {
       print!(" > ");
 
       let input = helpers::input();
@@ -142,34 +172,91 @@ impl Game {
         should_exit = true;
 
         client.send_message(Message::Bye, "");
+        break;
       }
 
       else {
         // Make move
         match self.make_move(&input) {
-          Ok(_) => {},
+          Ok(_) => {
+            // Tell the other player about it
+            client.send_message(Message::MakeMove, &input);
+
+            // Print board
+            println!("\n\r{}\n\r", self);
+            break;
+          },
+
           Err(err) => {
             println!("{}", err);
             println!("{}", input);
+            continue;
           }
         };
-
-        // Tell the other player about it
-        client.send_message(Message::MakeMove, &input);
-
-        // Wait for other player to make move
-        let (msg_type, msg_payload) = client.wait_for_message();
-
-        // Make the move for them
-        match self.make_move(&msg_payload) {
-          Ok(_) => {},
-          Err(err) => {
-            println!("{}", err);
-            println!("{}", &msg_payload);
-          }
-        }
       }
     }
+
+    should_exit
+  }
+
+  fn other_player_turn(&mut self, client: &mut Client) -> bool {
+    let mut should_exit = false;
+
+    // Loop until a valid move is received
+    loop {
+      // Wait for other player to make move
+      let (msg_type, msg_payload) = client.wait_for_message();
+
+      match msg_type {
+
+        // Other player is exiting game
+        Message::Bye => { should_exit = true; break; },
+
+        // Other player is making a move
+        Message::MakeMove => {
+          // Make the move on our board
+          match self.make_move(&msg_payload) {
+            Ok(_) => { 
+              // Print board
+              println!("\n\r{}\n\r", self);
+              break; 
+            },
+            
+            Err(err) => {
+              println!("{}", err);
+              println!("{}", &msg_payload);
+
+              // Tell other player bad move was made
+              client.send_message(Message::BadMessage, "");
+              continue;
+            }
+          }
+        },
+
+        // Unhandled; TODO: handle.
+        _ => { continue; },
+      }
+    }
+
+    should_exit
+  }
+
+  /// Build the TCP Client
+  fn build_tcp_client(&self) -> Client {
+    print!("Remote address > ");
+
+    let addr = helpers::input();
+
+    Client::new(&addr)
+  }
+
+  /// Build the TCP host
+  fn build_tcp_host(&self) -> Client {
+    print!("Local address > ");
+
+    let addr = helpers::input();
+
+    Client::host(&addr)
   }
 }
 

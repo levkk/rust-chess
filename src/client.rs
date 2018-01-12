@@ -6,7 +6,8 @@ use regex::RegexSet;
 // use board::Color;
 
 use connection::{
-  Connection, EchoConnection, TcpConnection
+  Connection, EchoConnection, TcpConnection,
+  SelfConnection,
 };
 
 // Messages and Regexes
@@ -19,6 +20,7 @@ pub struct Client {
   // connected: bool,
   // in_game: bool,
   // color: Color,
+  pub host: bool,
 }
 
 impl Client {
@@ -44,12 +46,13 @@ impl Client {
     }
 
     else {
-      connection = Box::new(EchoConnection::new());
+      connection = Box::new(SelfConnection::new());
     }
         
     Client{
       // server: String::from(server),
-      connection: connection,
+      connection,
+      host: false,
 
       // color: Color::Nil,
     }
@@ -79,6 +82,7 @@ impl Client {
 
     Client{
       connection,
+      host: true,
     }
   }
 
