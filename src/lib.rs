@@ -15,6 +15,11 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+// Graphics
+extern crate gl;
+extern crate glfw;
+extern crate cgmath;
+
 // Modules
 pub mod board;
 pub mod game;
@@ -22,6 +27,7 @@ pub mod client;
 pub mod protocol;
 pub mod connection;
 pub mod helpers;
+pub mod gui;
 
 use game::Game;
 

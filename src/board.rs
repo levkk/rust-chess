@@ -297,8 +297,8 @@ impl Board {
     }
 
     match ALPHABET.iter().position(|&x| x == letter) {
-    Some(x) => x,
-    None => panic!("letter_to_column: Unknown column given."),
+      Some(x) => x,
+      None => panic!("letter_to_column: Unknown column given."),
     }
   }
 

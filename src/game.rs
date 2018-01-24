@@ -16,6 +16,7 @@ use std::io::prelude::*;
 use board::Board;
 use client::Client;
 use protocol::Message;
+use gui::Window;
 
 // Helpers
 use helpers;
@@ -131,6 +132,12 @@ impl Game {
     };
 
     println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
+
+    let mut window = Window::new(512, 256);
+
+    while !window.should_close() {
+      window.draw();
+    }
 
     loop {
       println!("\n\r{}\n\r", self);
