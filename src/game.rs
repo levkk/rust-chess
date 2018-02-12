@@ -122,48 +122,48 @@ impl Game {
 
   /// Start the game
   pub fn start(&mut self) {
-    print!(" Client > ");
+    //print!(" Client > ");
 
-    let mut client = match helpers::input().as_ref() {
-      "client" => self.build_tcp_client(),
-      "host" => self.build_tcp_host(),
-      "self" => Client::new("self"),
-      other => panic!("Unknown client chosen: {}", other),
-    };
+    // let mut client = match helpers::input().as_ref() {
+    //   "client" => self.build_tcp_client(),
+    //   "host" => self.build_tcp_host(),
+    //   "self" => Client::new("self"),
+    //   other => panic!("Unknown client chosen: {}", other),
+    // };
 
-    println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
+    // println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
 
-    let mut window = Window::new(512, 256);
+    let mut window = Window::new(756, 756);
 
     while !window.should_close() {
       window.draw();
     }
 
-    loop {
-      println!("\n\r{}\n\r", self);
+    // loop {
+    //   println!("\n\r{}\n\r", self);
 
-      if client.host {
-        if self.other_player_turn(&mut client) {
-          break;
-        }
+    //   if client.host {
+    //     if self.other_player_turn(&mut client) {
+    //       break;
+    //     }
 
-        // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client) {
-          break;
-        }
-      }
+    //     // Loop until a valid move is made or we exit
+    //     if self.my_turn(&mut client) {
+    //       break;
+    //     }
+    //   }
 
-      else {
-        // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client) {
-          break;
-        }
+    //   else {
+    //     // Loop until a valid move is made or we exit
+    //     if self.my_turn(&mut client) {
+    //       break;
+    //     }
 
-        if self.other_player_turn(&mut client) {
-          break;
-        }
-      }
-    }
+    //     if self.other_player_turn(&mut client) {
+    //       break;
+    //     }
+    //   }
+    // }
   }
 
   fn my_turn(&mut self, client: &mut Client) -> bool {
