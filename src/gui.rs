@@ -10,7 +10,8 @@ use std::sync::mpsc::Receiver;
 use glfw::Context;
 use gl::types::*;
 
-use cgmath::{Matrix, Matrix4, Vector4, Vector3};
+use cgmath::{Matrix, Matrix4, Vector4, Vector3, Transform};
+
 
 // C string
 use std::ffi::CString;
@@ -65,7 +66,7 @@ pub struct Window {
   window: Box<glfw::Window>,
   events: Box<Receiver<(f64, glfw::WindowEvent)>>,
   program: GLuint,
-  vaos: HashMap<GLuint, usize>,
+  vaos: HashMap<GLuint, usize>, // VAO --> number of points
 }
 
 impl Window {
@@ -89,21 +90,21 @@ impl Window {
       vaos: HashMap::new(),
     };
 
-    // Use the shader
-    // We'll need this to set the uniforms
-    unsafe {
-      gl::UseProgram(program);
-    }
-
     let grid = window.draw_grid();
+    let pawn = window.draw_pawn();
 
     window.vaos.insert(grid.0, grid.1);
+    window.vaos.insert(pawn.0, pawn.1);
 
     window
   }
 
   /// Start OpenGL and GLFW
-  fn init_glfw(width: u32, height: u32) -> (Box<glfw::Glfw>, Box<glfw::Window>, Box<Receiver<(f64, glfw::WindowEvent)>>) {
+  fn init_glfw(width: u32, height: u32) -> (
+    Box<glfw::Glfw>,
+    Box<glfw::Window>,
+    Box<Receiver<(f64, glfw::WindowEvent)>>,
+  ) {
     let mut glfw = match glfw::init(glfw::FAIL_ON_ERRORS) {
       Ok(glfw) => glfw,
       Err(err) => panic!("GLFW error: {}", err),
@@ -206,15 +207,27 @@ impl Window {
     }
   }
 
+  // Sets the uniform with a mat4
   fn set_mat4(&self, name: &str, mat: Matrix4<f32>) {
     let uniform_name_c_str = CString::new(name).unwrap();
 
     unsafe {
+      gl::UseProgram(self.program);
       gl::UniformMatrix4fv(gl::GetUniformLocation(self.program, uniform_name_c_str.as_ptr()), 1, gl::FALSE, mat.as_ptr());
     }
   }
 
-  ///
+  /// Couldn't find that in the docs for cgmath
+  fn get_identity_mat4() -> Matrix4<f32> {
+    Matrix4::from_cols(
+      Vector4::new(1.0f32, 0.0f32, 0.0f32, 0.0f32),
+      Vector4::new(0.0f32, 1.0f32, 0.0f32, 0.0f32),
+      Vector4::new(0.0f32, 0.0f32, 1.0f32, 0.0f32),
+      Vector4::new(0.0f32, 0.0f32, 0.0f32, 1.0f32),
+    )
+  }
+
+  /// Draw the chess grid
   fn draw_grid(&self) -> (GLuint, usize) {
 
     // Colors of the squares
@@ -237,6 +250,18 @@ impl Window {
       vec![],
       vec![],
     );
+
+    // Helps add points to a vector
+    let add_points = |points: &Vector3<f32>, color: &[f32], destination: &mut Vec<f32>| {
+      destination.push(points.x);
+      destination.push(points.y);
+      destination.push(points.z);
+
+      destination.push(color[0]);
+      destination.push(color[1]);
+      destination.push(color[2]);
+      destination.push(color[3]);
+    };
 
     // Indice counter
     let mut ic = 0;
@@ -269,48 +294,13 @@ impl Window {
           _ => panic!("Impossible."),
         };
 
-        //
+        // Increment square counter
         sc += 1;
 
-        points.push(p1.x);
-        points.push(p1.y);
-        points.push(p1.z);
-
-        points.push(color[0]);
-        points.push(color[1]);
-        points.push(color[2]);
-        points.push(color[3]);
-
-
-        points.push(p2.x);
-        points.push(p2.y);
-        points.push(p2.z);
-
-        points.push(color[0]);
-        points.push(color[1]);
-        points.push(color[2]);
-        points.push(color[3]);
-
-
-        points.push(p3.x);
-        points.push(p3.y);
-        points.push(p3.z);
-
-        points.push(color[0]);
-        points.push(color[1]);
-        points.push(color[2]);
-        points.push(color[3]);
-
-
-        points.push(p4.x);
-        points.push(p4.y);
-        points.push(p4.z);
-
-        points.push(color[0]);
-        points.push(color[1]);
-        points.push(color[2]);
-        points.push(color[3]);
-
+        add_points(&p1, &color, &mut points);
+        add_points(&p2, &color, &mut points);
+        add_points(&p3, &color, &mut points);
+        add_points(&p4, &color, &mut points);
 
         // Indices
         indices.push(ic);
@@ -324,22 +314,27 @@ impl Window {
       }
     }
 
-    // // Just a square
-    // let mut points = vec![
-    //   -0.5f32, 0.5f32, 0.0f32, black[0], black[1], black[2], black[3],
-    //   0.0f32, 0.5f32, 0.0f32, black[0], black[1], black[2], black[3],
-    //   0.0f32, 0.0f32, 0.0f32, black[0], black[1], black[2], black[3],
+    let vao = self.initialize_and_buffer_vve(&points, &indices);
 
-    //   //-0.5f32, 0.5f32, 0.0f32, white[0], white[1], white[2], white[3],
-    //   //0.0f32, 0.0f32, 0.0f32, white[0], white[1], white[2], white[3],
-    //   -0.5f32, 0.0f32, 0.0f32, black[0], black[1], black[2], black[3],
-    // ];
+    // Set mode
+    self.set_mat4("model",
+      Self::get_identity_mat4(),
+    );
 
-    // let mut indices = vec![
-    //   0, 1, 2,
-    //   0, 2, 3,
-    // ];
+    // Set view
+    self.set_mat4("view",
+      Self::get_identity_mat4(),
+    );
 
+    // Set projection
+    self.set_mat4("projection",
+      Self::get_identity_mat4(),
+    );
+
+    (vao, indices.len())
+  }
+
+  fn initialize_and_buffer_vve(&self, points: &Vec<f32>, indices: &Vec<i32>) -> (GLuint) {
     let (mut vao, mut vbo, mut ebo) = (0, 0, 0);
 
     unsafe {
@@ -381,39 +376,30 @@ impl Window {
 
       // Unbind the VAO, we're done here
       gl::BindVertexArray(0);
-
-      // Set the view, model, and projection to identity since I'm not using them yet
-
-      // Set mode
-      self.set_mat4("model",
-        Matrix4::from_cols(
-          Vector4::new(1.0f32, 0.0f32, 0.0f32, 0.0f32),
-          Vector4::new(0.0f32, 1.0f32, 0.0f32, 0.0f32),
-          Vector4::new(0.0f32, 0.0f32, 1.0f32, 0.0f32),
-          Vector4::new(0.0f32, 0.0f32, 0.0f32, 1.0f32),
-        )
-      );
-
-      // Set view
-      self.set_mat4("view",
-        Matrix4::from_cols(
-          Vector4::new(1.0f32, 0.0f32, 0.0f32, 0.0f32),
-          Vector4::new(0.0f32, 1.0f32, 0.0f32, 0.0f32),
-          Vector4::new(0.0f32, 0.0f32, 1.0f32, 0.0f32),
-          Vector4::new(0.0f32, 0.0f32, 0.0f32, 1.0f32),
-        )
-      );
-
-      // Set projection
-      self.set_mat4("projection",
-        Matrix4::from_cols(
-          Vector4::new(1.0f32, 0.0f32, 0.0f32, 0.0f32),
-          Vector4::new(0.0f32, 1.0f32, 0.0f32, 0.0f32),
-          Vector4::new(0.0f32, 0.0f32, 1.0f32, 0.0f32),
-          Vector4::new(0.0f32, 0.0f32, 0.0f32, 1.0f32),
-        )
-      );
     }
+
+    vao
+  }
+
+  fn draw_pawn(&self) -> (GLuint, usize) {
+
+    let transform = Matrix4::from_translation(Vector3::new(-0.75f32, -0.75f32, 0.0f32));
+
+    let p1 = Vector3::new(0.1f32, -0.1f32, 0.0f32);
+    let p2 = Vector3::new(0.0f32, 0.1f32, 0.0f32);
+    let p3 = Vector3::new(-0.1f32, -0.1f32, 0.0f32);
+    
+    transform.transform_vector(p1);
+
+    let triangle = vec![
+      0.1f32, -0.1f32, 0.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
+      0.0f32, 0.1f32, 0.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
+      -0.1f32, -0.1f32, 0.0f32,1.0f32, 1.0f32, 0.0f32, 1.0f32,
+    ];
+
+    let indices = vec![0, 1, 2];
+
+    let vao = self.initialize_and_buffer_vve(&triangle, &indices);
 
     (vao, indices.len())
   }
