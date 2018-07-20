@@ -93,8 +93,8 @@ impl Window {
     let grid = window.draw_grid();
     let pawn = window.draw_pawn();
 
-    window.vaos.insert(grid.0, grid.1);
     window.vaos.insert(pawn.0, pawn.1);
+    window.vaos.insert(grid.0, grid.1);
 
     window
   }
@@ -132,6 +132,14 @@ impl Window {
     // gl: load all OpenGL function pointers
     // ---------------------------------------
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
+
+    // Depyth buffer
+    unsafe {
+      gl::ClearDepth(1.0);
+      gl::DepthFunc(gl::LESS);
+      gl::Enable(gl::DEPTH_TEST);
+    }
+    
 
     (Box::new(glfw), Box::new(window), Box::new(events))
   }
@@ -383,18 +391,18 @@ impl Window {
 
   fn draw_pawn(&self) -> (GLuint, usize) {
 
-    let transform = Matrix4::from_translation(Vector3::new(-0.75f32, -0.75f32, 0.0f32));
+    // let transform = Matrix4::from_translation(Vector3::new(-0.75f32, -0.75f32, 0.0f32));
 
-    let p1 = Vector3::new(0.1f32, -0.1f32, 0.0f32);
-    let p2 = Vector3::new(0.0f32, 0.1f32, 0.0f32);
-    let p3 = Vector3::new(-0.1f32, -0.1f32, 0.0f32);
+    // let p1 = Vector3::new(0.1f32, -0.1f32, 0.0f32);
+    // let p2 = Vector3::new(0.0f32, 0.1f32, 0.0f32);
+    // let p3 = Vector3::new(-0.1f32, -0.1f32, 0.0f32);
     
-    transform.transform_vector(p1);
+    // transform.transform_vector(p1);
 
     let triangle = vec![
-      0.1f32, -0.1f32, 0.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
-      0.0f32, 0.1f32, 0.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
-      -0.1f32, -0.1f32, 0.0f32,1.0f32, 1.0f32, 0.0f32, 1.0f32,
+      0.1f32, -0.1f32, -1.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
+      0.0f32, 0.1f32, -1.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
+      -0.1f32, -0.1f32, -1.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
     ];
 
     let indices = vec![0, 1, 2];
@@ -412,7 +420,7 @@ impl Window {
   pub fn draw(&mut self) {
     unsafe {
       gl::ClearColor(0.2, 0.3, 0.3, 1.0);
-      gl::Clear(gl::COLOR_BUFFER_BIT);
+      gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
       for (vao, num_of_points) in &self.vaos {
         gl::BindVertexArray(*vao);
