@@ -4,13 +4,14 @@ extern crate gl;
 extern crate glfw;
 
 use graphic_object::{Vertice, GraphicObject};
+use board::{Board, Color};
 
 use std::sync::mpsc::Receiver;
 
 use glfw::Context;
 use gl::types::*;
 
-use cgmath::{Matrix4, Vector4, Point3, Vector3, Transform};
+use cgmath::{Matrix4, Vector4, Point3, Vector3};
 
 
 // C string
@@ -65,6 +66,8 @@ pub struct Window {
   events: Box<Receiver<(f64, glfw::WindowEvent)>>,
   program: GLuint,
   objects: Vec<GraphicObject>,
+  board: Board,
+  should_close: bool,
 }
 
 impl Window {
@@ -86,10 +89,12 @@ impl Window {
       events,
       program,
       objects: Vec::new(),
+      board: Board::new(),
+      should_close: false,
     };
 
     window.draw_grid();
-    window.draw_pawn();
+    window.draw_pieces();
 
     window
   }
@@ -133,6 +138,8 @@ impl Window {
       gl::ClearDepth(1.0);
       gl::DepthFunc(gl::LESS);
       gl::Enable(gl::DEPTH_TEST);
+
+      gl::PointSize(10.0);
     }
     
     (Box::new(glfw), Box::new(window), Box::new(events))
@@ -289,48 +296,68 @@ impl Window {
     }
 
     let mut object = GraphicObject::new(self.program);
-
     object.update(&points, &indices);
-
     self.objects.push(object);
   }
 
-  /// Draw pawn
-  fn draw_pawn(&mut self) {
+  ///
+  fn draw_pieces(&mut self) {
+    let mapper = |input: usize| -> f32 {
+      let slope = 1.0 * (1 - (-1)) as f32 / (8 - 0) as f32;
+      
+      return (-1.0f32) + slope * (input as f32 - 0.0f32);
+    };
 
-    // Create a triangle
-    let p1 = Point3::new(0.1f32, -0.1f32, -1.0f32);
-    let p2 = Point3::new(0.0f32, 0.1f32, -1.0f32);
-    let p3 = Point3::new(-0.1f32, -0.1f32, -1.0f32);
+    for y in 0..8 {
+      for x in 0..8 {
+        if !self.board.has_piece((x, y)) {
+          continue;
+        }
 
-    // Move the triangle down and left
-    let transform = Matrix4::from_translation(Vector3::new(-0.875f32, -0.875f32, 0.0f32));
-    
-    let p1 = transform.transform_point(p1);
-    let p2 = transform.transform_point(p2);
-    let p3 = transform.transform_point(p3);
+        let x_coord = mapper(x);
+        let y_coord = -mapper(y) - 0.25f32;
 
-    // Give it a nice color
-    let color = Vector4::new(0.0f32, 0.0f32, 1.0f32, 1.0f32);
+        let color = match self.board.get_color((x, y)) {
+          Color::Black => Vector4::new(1.0f32, 0.5f32, 0.0f32, 1.0f32),
+          Color::White => Vector4::new(30.0f32 / 256.0f32, 179.0f32 / 256.0f32, 0.0f32, 1.0f32),
+          Color::Nil => Vector4::new(0.0f32, 0.0f32, 0.0f32, 0.0f32),
+        };
 
-    let triangle = vec![
-      Vertice::new(p1, color),
-      Vertice::new(p2, color),
-      Vertice::new(p3, color),
-    ];
+        let center = Vertice::new(
+          Point3::new(x_coord, y_coord, -0.1f32),
+          color,
+        );
 
-    let indices = vec![0, 1, 2];
+        let center = center.translate(Vector3::new(0.25f32 / 2.0f32, 0.25f32 / 2.0f32, 0.0f32));
 
-    let mut obj = GraphicObject::new(self.program);
+        let p1 = center.translate(Vector3::new(0.1f32, -0.1f32, 0.0f32));
+        let p2 = center.translate(Vector3::new(0.0f32, 0.1f32, 0.0f32));
+        let p3 = center.translate(Vector3::new(-0.1f32, -0.1f32, 0.0f32));
 
-    obj.update(&triangle, &indices);
+        let points = vec![p1, p2, p3];
+        let indices = vec![0, 1, 2];
 
-    self.objects.push(obj);
+        let mut obj = GraphicObject::new(self.program);
+        obj.update(&points, &indices);
+        self.objects.push(obj);
+      }
+    }
   }
 
   /// Window should remain open
   pub fn should_close(&self) -> bool {
-    return self.window.should_close();
+    return self.window.should_close() || self.should_close;
+  }
+
+  pub fn close(&mut self) {
+    self.should_close = true;
+  }
+
+  pub fn update_board(&mut self, board: Board) {
+    self.board = board;
+    self.objects.clear();
+    self.draw_grid();
+    self.draw_pieces();
   }
 
   /// Draw the game

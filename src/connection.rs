@@ -197,6 +197,10 @@ impl Connection for SelfConnection {
     if value == "exit" {
       Ok(Message::Bye.to_string())
     }
+
+    else if value.len() != 4 {
+      Ok(format!("{}", Message::BadMessage))
+    }
     
     else {
       Ok(format!("{} {}", Message::MakeMove, value))
@@ -206,11 +210,4 @@ impl Connection for SelfConnection {
   fn get_message(&self) -> Result<String, String> {
     Ok(String::from("Nothing"))
   }
-}
-
-
-
-#[cfg(test)]
-mod tests {
-
 }

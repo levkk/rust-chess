@@ -136,6 +136,7 @@ impl Client {
         MessageRegex::Bye.to_string(),
         MessageRegex::MakeMove.to_string(),
         MessageRegex::Hello.to_string(),
+        MessageRegex::BadMessage.to_string(),
       ]).unwrap();
     }
     
@@ -159,6 +160,10 @@ impl Client {
 
       Some(&2) => {
         Ok((Message::Hello, String::from(&message[6..])))
+      },
+
+      Some(&3) => {
+        Ok((Message::BadMessage, String::from("")))
       },
 
       Some(&_) => {

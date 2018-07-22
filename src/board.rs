@@ -125,7 +125,7 @@ impl fmt::Display for Cell {
 /// Example:
 ///
 /// See implementation for Self::new()
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Board {
   /// Multidimensional vector holding the board cells.
   board: Vec<Vec<Cell>>,
@@ -326,14 +326,13 @@ impl Board {
     assert_eq!(to.len(), 2);
 
     let from = (
-    Self::letter_to_column(&from[..1]),
-    Self::number_to_row(&from[1..])
-    
+      Self::letter_to_column(&from[..1]),
+      Self::number_to_row(&from[1..])
     );
 
     let to = (
-    Self::letter_to_column(&to[..1]),
-    Self::number_to_row(&to[1..])
+      Self::letter_to_column(&to[..1]),
+      Self::number_to_row(&to[1..])
     );
 
     self.move_piece(from, to)
@@ -405,8 +404,13 @@ impl Board {
   /// `coord` tuple(2) of usize
   ///
   /// Return: bool (true if exists, else false)
-  fn has_piece(&self, coord: (usize, usize)) -> bool {
+  pub fn has_piece(&self, coord: (usize, usize)) -> bool {
     return self.board[coord.0][coord.1].piece.piece_type != Piece::Nil;
+  }
+
+
+  pub fn get_color(&self, coord: (usize, usize)) -> Color {
+    return self.board[coord.0][coord.1].color.clone();
   }
 
   ///

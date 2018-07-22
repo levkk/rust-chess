@@ -8,6 +8,10 @@ extern crate serde_json;
 // Display trait
 use std::fmt;
 
+use std::thread;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::Duration;
+
 // Writing and reading files
 use std::fs::File;
 use std::io::prelude::*;
@@ -122,48 +126,92 @@ impl Game {
 
   /// Start the game
   pub fn start(&mut self) {
-    //print!(" Client > ");
+    print!(" Client > ");
 
-    // let mut client = match helpers::input().as_ref() {
-    //   "client" => self.build_tcp_client(),
-    //   "host" => self.build_tcp_host(),
-    //   "self" => Client::new("self"),
-    //   other => panic!("Unknown client chosen: {}", other),
-    // };
+    let mut client = match helpers::input().as_ref() {
+      "client" => self.build_tcp_client(),
+      "host" => self.build_tcp_host(),
+      "self" => Client::new("self"),
+      other => panic!("Unknown client chosen: {}", other),
+    };
 
-    // println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
+    println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
 
-    let mut window = Window::new(756, 756);
+    let (board_sender, board_receiver): (Sender<Board>, Receiver<Board>) = channel();
+    let (close_sender, close_receiver): (Sender<bool>, Receiver<bool>) = channel();
 
-    while !window.should_close() {
-      window.draw();
+    // GUI
+    let handle = thread::spawn(move || {
+      let mut window = Window::new(756, 756);
+      let mut board = Board::new();
+
+      while !window.should_close() {
+
+        // Get the new board
+        match board_receiver.recv_timeout(Duration::from_millis(100)) {
+          Ok(new_board) => board = new_board.clone(),
+          Err(_) => (),
+        };
+
+        // Close the GUI, maybe
+        match close_receiver.recv_timeout(Duration::from_millis(10)) {
+          Ok(close) => {
+            if close {
+              window.close();
+            }
+          },
+          Err(_) => (),
+        };
+
+        // Update board with new or old board
+        window.update_board(board.clone());
+
+        // And render it
+        window.draw();
+      }
+    });
+
+    loop {
+      println!("\n\r{}\n\r", self);
+
+      if client.host {
+        if self.other_player_turn(&mut client) {
+          close_sender.send(true).unwrap();
+          break;
+        }
+
+        board_sender.send(self.board.clone()).unwrap();
+
+
+        // Loop until a valid move is made or we exit
+        if self.my_turn(&mut client) {
+          close_sender.send(true).unwrap();
+          break;
+        }
+
+        board_sender.send(self.board.clone()).unwrap();
+      }
+
+      else {
+        // Loop until a valid move is made or we exit
+        if self.my_turn(&mut client) {
+          close_sender.send(true).unwrap();
+          break;
+        }
+
+        board_sender.send(self.board.clone()).unwrap();
+
+        if self.other_player_turn(&mut client) {
+          close_sender.send(true).unwrap();
+          break;
+        }
+
+        board_sender.send(self.board.clone()).unwrap();
+      }
     }
 
-    // loop {
-    //   println!("\n\r{}\n\r", self);
-
-    //   if client.host {
-    //     if self.other_player_turn(&mut client) {
-    //       break;
-    //     }
-
-    //     // Loop until a valid move is made or we exit
-    //     if self.my_turn(&mut client) {
-    //       break;
-    //     }
-    //   }
-
-    //   else {
-    //     // Loop until a valid move is made or we exit
-    //     if self.my_turn(&mut client) {
-    //       break;
-    //     }
-
-    //     if self.other_player_turn(&mut client) {
-    //       break;
-    //     }
-    //   }
-    // }
+    // Wait for the GUI to terminate
+    handle.join().unwrap();
   }
 
   fn my_turn(&mut self, client: &mut Client) -> bool {

@@ -42,10 +42,14 @@ impl Vertice {
   }
 
   ///
-  pub fn translate(&mut self, vector: Vector3<f32>) {
+  pub fn translate(&self, vector: Vector3<f32>) -> Vertice {
     let transform = Matrix4::from_translation(vector);
     let point = transform.transform_point(self.point);
-    self.point = point;
+    
+    Vertice{
+      point,
+      color: self.color,
+    }
   }
 }
 
@@ -57,6 +61,7 @@ pub struct GraphicObject {
   vao: GLuint,
   ebo: GLuint,
   model: Matrix4<f32>,
+  debug: bool,
 }
 
 impl GraphicObject {
@@ -79,6 +84,7 @@ impl GraphicObject {
       vao,
       ebo,
       model: Window::get_identity_mat4(),
+      debug: false,
     }
   }
 
@@ -86,7 +92,7 @@ impl GraphicObject {
     self.points = points.clone();
     self.indices = indices.clone();
 
-    let mut buffer = vec![0.0f32; 0];
+    let mut buffer = Vec::new();
 
     for point in &self.points {
       buffer.append(&mut point.to_vec());
@@ -144,11 +150,22 @@ impl GraphicObject {
     self.model = mtx;
   }
 
+  pub fn debug(&mut self, debug: bool) {
+    self.debug = debug;
+  }
+
   pub fn draw(&self) {
     self.set_mat4("model", self.model);
     unsafe {
       gl::BindVertexArray(self.vao);
-      gl::DrawElements(gl::TRIANGLES, self.indices.len() as GLint, gl::UNSIGNED_INT, ptr::null());
+
+      if self.debug {
+        gl::DrawArrays(gl::POINTS, 0, self.points.len() as GLint);
+      }
+
+      else {
+        gl::DrawElements(gl::TRIANGLES, self.indices.len() as GLint, gl::UNSIGNED_INT, ptr::null());
+      }
     }
   }
 }
