@@ -3,14 +3,14 @@
 extern crate gl;
 extern crate glfw;
 
-use std::collections::HashMap;
+use graphic_object::{Vertice, GraphicObject};
 
 use std::sync::mpsc::Receiver;
 
 use glfw::Context;
 use gl::types::*;
 
-use cgmath::{Matrix, Matrix4, Vector4, Vector3, Transform};
+use cgmath::{Matrix4, Vector4, Point3, Vector3, Transform};
 
 
 // C string
@@ -18,8 +18,6 @@ use std::ffi::CString;
 
 use std::ptr;
 use std::str;
-use std::mem;
-use std::os::raw::c_void;
 
 
 const vertex_shader_source: &str = r#"
@@ -38,7 +36,7 @@ const vertex_shader_source: &str = r#"
     out vec4 color_vertex;
 
     void main() {
-       gl_Position = projection * view * model * vec4(position.x, position.y, position.z, 1.0);
+       gl_Position = /*projection * view * */ model * vec4(position.x, position.y, position.z, 1.0);
 
        /* Pass along the color and the normal for lighting. */
        color_vertex = color;
@@ -66,10 +64,11 @@ pub struct Window {
   window: Box<glfw::Window>,
   events: Box<Receiver<(f64, glfw::WindowEvent)>>,
   program: GLuint,
-  vaos: HashMap<GLuint, usize>, // VAO --> number of points
+  objects: Vec<GraphicObject>,
 }
 
 impl Window {
+  /// Initialize graphics
   pub fn new(width: u32, height: u32) -> Window {
 
     let (glfw, window, events) = Window::init_glfw(width, height);
@@ -79,7 +78,6 @@ impl Window {
       Err(err) => panic!("Shader error: {}", err),
     };
 
-
     let mut window = Window{
       width,
       height,
@@ -87,14 +85,11 @@ impl Window {
       window,
       events,
       program,
-      vaos: HashMap::new(),
+      objects: Vec::new(),
     };
 
-    let grid = window.draw_grid();
-    let pawn = window.draw_pawn();
-
-    window.vaos.insert(pawn.0, pawn.1);
-    window.vaos.insert(grid.0, grid.1);
+    window.draw_grid();
+    window.draw_pawn();
 
     window
   }
@@ -140,7 +135,6 @@ impl Window {
       gl::Enable(gl::DEPTH_TEST);
     }
     
-
     (Box::new(glfw), Box::new(window), Box::new(events))
   }
 
@@ -215,18 +209,8 @@ impl Window {
     }
   }
 
-  // Sets the uniform with a mat4
-  fn set_mat4(&self, name: &str, mat: Matrix4<f32>) {
-    let uniform_name_c_str = CString::new(name).unwrap();
-
-    unsafe {
-      gl::UseProgram(self.program);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.program, uniform_name_c_str.as_ptr()), 1, gl::FALSE, mat.as_ptr());
-    }
-  }
-
   /// Couldn't find that in the docs for cgmath
-  fn get_identity_mat4() -> Matrix4<f32> {
+  pub fn get_identity_mat4() -> Matrix4<f32> {
     Matrix4::from_cols(
       Vector4::new(1.0f32, 0.0f32, 0.0f32, 0.0f32),
       Vector4::new(0.0f32, 1.0f32, 0.0f32, 0.0f32),
@@ -236,40 +220,22 @@ impl Window {
   }
 
   /// Draw the chess grid
-  fn draw_grid(&self) -> (GLuint, usize) {
+  fn draw_grid(&mut self) {
 
     // Colors of the squares
     let (
       black,
       white,
     ) = (
-      [0.0f32, 0.0f32, 0.0f32, 1.0f32],
-      [1.0f32, 1.0f32, 1.0f32, 1.0f32],
+      Vector4::new(0.0f32, 0.0f32, 0.0f32, 1.0f32),
+      Vector4::new(1.0f32, 1.0f32, 1.0f32, 1.0f32),
     );
 
     // Size of the square
     let side = 1.0f32 / 4.0f32;
 
     // Points and indices
-    let (
-      mut points,
-      mut indices,
-    ) = (
-      vec![],
-      vec![],
-    );
-
-    // Helps add points to a vector
-    let add_points = |points: &Vector3<f32>, color: &[f32], destination: &mut Vec<f32>| {
-      destination.push(points.x);
-      destination.push(points.y);
-      destination.push(points.z);
-
-      destination.push(color[0]);
-      destination.push(color[1]);
-      destination.push(color[2]);
-      destination.push(color[3]);
-    };
+    let (mut points, mut indices) = (vec![], vec![]);
 
     // Indice counter
     let mut ic = 0;
@@ -285,10 +251,10 @@ impl Window {
         let y1 = py as f32 * side;
         let y2 = py as f32 * side + side;
 
-        let p1 = Vector3::new(x1, y1, 0.0f32);
-        let p2 = Vector3::new(x2, y1, 0.0f32);
-        let p3 = Vector3::new(x1, y2, 0.0f32);
-        let p4 = Vector3::new(x2, y2, 0.0f32);
+        let p1 = Point3::new(x1, y1, 0.0f32);
+        let p2 = Point3::new(x2, y1, 0.0f32);
+        let p3 = Point3::new(x1, y2, 0.0f32);
+        let p4 = Point3::new(x2, y2, 0.0f32);
 
         // Reset the color logic every column
         if sc % 9 == 0 {
@@ -305,10 +271,10 @@ impl Window {
         // Increment square counter
         sc += 1;
 
-        add_points(&p1, &color, &mut points);
-        add_points(&p2, &color, &mut points);
-        add_points(&p3, &color, &mut points);
-        add_points(&p4, &color, &mut points);
+        points.push(Vertice::new(p1, color));
+        points.push(Vertice::new(p2, color));
+        points.push(Vertice::new(p3, color));
+        points.push(Vertice::new(p4, color));
 
         // Indices
         indices.push(ic);
@@ -322,94 +288,44 @@ impl Window {
       }
     }
 
-    let vao = self.initialize_and_buffer_vve(&points, &indices);
+    let mut object = GraphicObject::new(self.program);
 
-    // Set mode
-    self.set_mat4("model",
-      Self::get_identity_mat4(),
-    );
+    object.update(&points, &indices);
 
-    // Set view
-    self.set_mat4("view",
-      Self::get_identity_mat4(),
-    );
-
-    // Set projection
-    self.set_mat4("projection",
-      Self::get_identity_mat4(),
-    );
-
-    (vao, indices.len())
+    self.objects.push(object);
   }
 
-  fn initialize_and_buffer_vve(&self, points: &Vec<f32>, indices: &Vec<i32>) -> (GLuint) {
-    let (mut vao, mut vbo, mut ebo) = (0, 0, 0);
+  /// Draw pawn
+  fn draw_pawn(&mut self) {
 
-    unsafe {
-      // Create VAO, VBO and EBO
-      gl::GenVertexArrays(1, &mut vao);
-      gl::GenBuffers(1, &mut vbo);
-      gl::GenBuffers(1, &mut ebo);
+    // Create a triangle
+    let p1 = Point3::new(0.1f32, -0.1f32, -1.0f32);
+    let p2 = Point3::new(0.0f32, 0.1f32, -1.0f32);
+    let p3 = Point3::new(-0.1f32, -0.1f32, -1.0f32);
 
-      // Bind VAO
-      gl::BindVertexArray(vao);
-
-      // Bind VBO
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-
-      // Send the points and the colors
-      gl::BufferData(gl::ARRAY_BUFFER,
-        (points.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-        &points[0] as *const f32 as *const c_void,
-        gl::STATIC_DRAW,
-      );
-
-      // Send the indices
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-        (indices.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-        &indices[0] as *const i32 as *const c_void,
-        gl::STATIC_DRAW,
-      );
-
-      // Enable the points and the colors in the vertex shader
-      gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 7 * mem::size_of::<GLfloat>() as GLsizei, ptr::null());
-      gl::EnableVertexAttribArray(0);
-
-      gl::VertexAttribPointer(1, 4, gl::FLOAT, gl::FALSE, 7 * mem::size_of::<GLfloat>() as GLsizei, (3 * mem::size_of::<GLfloat>()) as *const c_void);
-      gl::EnableVertexAttribArray(1);
-
-      // Unbind the VBO, but keep the EBO bound
-      gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-
-      // Unbind the VAO, we're done here
-      gl::BindVertexArray(0);
-    }
-
-    vao
-  }
-
-  fn draw_pawn(&self) -> (GLuint, usize) {
-
-    // let transform = Matrix4::from_translation(Vector3::new(-0.75f32, -0.75f32, 0.0f32));
-
-    // let p1 = Vector3::new(0.1f32, -0.1f32, 0.0f32);
-    // let p2 = Vector3::new(0.0f32, 0.1f32, 0.0f32);
-    // let p3 = Vector3::new(-0.1f32, -0.1f32, 0.0f32);
+    // Move the triangle down and left
+    let transform = Matrix4::from_translation(Vector3::new(-0.875f32, -0.875f32, 0.0f32));
     
-    // transform.transform_vector(p1);
+    let p1 = transform.transform_point(p1);
+    let p2 = transform.transform_point(p2);
+    let p3 = transform.transform_point(p3);
+
+    // Give it a nice color
+    let color = Vector4::new(0.0f32, 0.0f32, 1.0f32, 1.0f32);
 
     let triangle = vec![
-      0.1f32, -0.1f32, -1.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
-      0.0f32, 0.1f32, -1.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
-      -0.1f32, -0.1f32, -1.0f32, 1.0f32, 1.0f32, 0.0f32, 1.0f32,
+      Vertice::new(p1, color),
+      Vertice::new(p2, color),
+      Vertice::new(p3, color),
     ];
 
     let indices = vec![0, 1, 2];
 
-    let vao = self.initialize_and_buffer_vve(&triangle, &indices);
+    let mut obj = GraphicObject::new(self.program);
 
-    (vao, indices.len())
+    obj.update(&triangle, &indices);
+
+    self.objects.push(obj);
   }
 
   /// Window should remain open
@@ -417,16 +333,15 @@ impl Window {
     return self.window.should_close();
   }
 
+  /// Draw the game
   pub fn draw(&mut self) {
     unsafe {
       gl::ClearColor(0.2, 0.3, 0.3, 1.0);
       gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+    }
 
-      for (vao, num_of_points) in &self.vaos {
-        gl::BindVertexArray(*vao);
-        gl::DrawElements(gl::TRIANGLES, *num_of_points as GLint, gl::UNSIGNED_INT, ptr::null());
-      }
-      
+    for object in &self.objects {
+      object.draw();
     }
 
     self.window.swap_buffers();

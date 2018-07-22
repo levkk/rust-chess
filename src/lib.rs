@@ -27,6 +27,7 @@ pub mod client;
 pub mod protocol;
 pub mod connection;
 pub mod helpers;
+pub mod graphic_object;
 pub mod gui;
 
 use game::Game;
