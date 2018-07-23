@@ -18,7 +18,7 @@ use cgmath::{Matrix, Matrix4, Vector4, Vector3, Point3, Transform};
 // 
 use gui::Window;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Vertice {
   point: Point3<f32>,
   color: Vector4<f32>,
@@ -53,6 +53,7 @@ impl Vertice {
   }
 }
 
+#[derive(Debug)]
 pub struct GraphicObject {
   program: GLuint,
   points: Vec<Vertice>,
