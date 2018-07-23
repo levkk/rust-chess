@@ -355,11 +355,11 @@ impl Board {
         // The pawn has moved, it can only move one field forward.
         // Or it can move one field diagonally if it captures another piece.           
         if piece.has_moved {
-          return (dx == 0 && dy == 1) || (dx == 1 && dy == 1 && self.has_piece(to));        
+          return (dx == 0 && dy == 1 && !self.has_piece(to)) || (dx == 1 && dy == 1 && self.has_piece(to));        
         }
         // The pawn has not moved, so it can one field forward or two for an opening.                  
         else {
-          return (dx == 0 && (dy == 1 || dy == 2)) || (dx == 1 && dy == 1 && self.has_piece(to));
+          return (dx == 0 && (dy == 1 || dy == 2) && !self.has_piece(to)) || (dx == 1 && dy == 1 && self.has_piece(to));
         }
       },
 
