@@ -1,3 +1,5 @@
+/// Main game loop
+
 // Regex
 extern crate regex;
 use regex::Regex;
@@ -143,13 +145,16 @@ impl Game {
     // GUI
     let handle = thread::spawn(move || {
       let mut window = Window::new(756, 756);
-      let mut board = Board::new();
+      // let mut board = Board::new();
 
       while !window.should_close() {
 
         // Get the new board
         match board_receiver.recv_timeout(Duration::from_millis(100)) {
-          Ok(new_board) => board = new_board.clone(),
+          Ok(new_board) => {
+            // Update board with new or old board
+            window.update_board(new_board.clone());
+          }
           Err(_) => (),
         };
 
@@ -163,13 +168,13 @@ impl Game {
           Err(_) => (),
         };
 
-        // Update board with new or old board
-        window.update_board(board.clone());
-
         // And render it
         window.draw();
       }
     });
+
+    // Draw the initial board
+    board_sender.send(self.board.clone()).unwrap();
 
     loop {
       println!("\n\r{}\n\r", self);

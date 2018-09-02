@@ -1,22 +1,29 @@
 #![allow(non_upper_case_globals)]
 // Graphics
 extern crate gl;
-extern crate glfw;
-
-use graphic_object::{Vertice, GraphicObject};
-use board::{Board, Color};
-
-use std::sync::mpsc::Receiver;
-
-use glfw::Context;
 use gl::types::*;
 
-use cgmath::{Matrix4, Vector4, Point3, Vector3};
+// GLFW
+extern crate glfw;
+use glfw::{Key, Action, Context};
 
+// Math
+use cgmath::{Matrix, Matrix4, One};
 
-// C string
+// OpenGL camera
+use camera;
+
+// OpenGL models
+use models::model::Model;
+use models::board::Board as BoardModel;
+use models::piece::Piece as PieceModel;
+
+// chess board
+use board::Board;
+
+// Std
+use std::sync::mpsc::Receiver;
 use std::ffi::CString;
-
 use std::ptr;
 use std::str;
 
@@ -37,7 +44,7 @@ const vertex_shader_source: &str = r#"
     out vec4 color_vertex;
 
     void main() {
-       gl_Position = /*projection * view * */ model * vec4(position.x, position.y, position.z, 1.0);
+       gl_Position = view * model * vec4(position.x, position.y, position.z, 1.0);
 
        /* Pass along the color and the normal for lighting. */
        color_vertex = color;
@@ -58,15 +65,36 @@ const fragment_shader_source: &str = r#"
     }
 "#;
 
+#[allow(dead_code)]
 pub struct Window {
+  // Window width
   width: u32,
+
+  // Window height
   height: u32,
+
+  // GLFW
   glfw: Box<glfw::Glfw>,
+
+  // GLFW window
   window: Box<glfw::Window>,
+
+  // GLFW events
   events: Box<Receiver<(f64, glfw::WindowEvent)>>,
+
+  // OpenGL camera
+  camera: camera::Camera,
+
+  // OpenGL Shader program
   program: GLuint,
-  objects: Vec<GraphicObject>,
+  
+  // OpenGL models to be drawn
+  models: Vec<Box<Model>>,
+
+  // The data (chess board)
   board: Board,
+
+  // Should the window close?
   should_close: bool,
 }
 
@@ -74,29 +102,50 @@ impl Window {
   /// Initialize graphics
   pub fn new(width: u32, height: u32) -> Window {
 
+    // Start-up OpenGL
     let (glfw, window, events) = Window::init_glfw(width, height);
     
+    // Shaders
     let program = match Window::init_shaders() {
       Ok(program) => program,
       Err(err) => panic!("Shader error: {}", err),
     };
 
+    // Window
     let mut window = Window{
       width,
       height,
       glfw,
       window,
       events,
+      camera: camera::Camera::default(),
       program,
-      objects: Vec::new(),
+      models: Vec::new(),
       board: Board::new(),
       should_close: false,
     };
 
-    window.draw_grid();
-    window.draw_pieces();
+    window.draw();
 
     window
+  }
+
+  /// Window should remain open
+  pub fn should_close(&self) -> bool {
+    return self.window.should_close() || self.should_close;
+  }
+
+  /// Close the GUI.
+  pub fn close(&mut self) {
+    self.should_close = true;
+  }
+
+  /// Update the board and re-draw it.
+  pub fn update_board(&mut self, board: Board) {
+    self.board = board;
+
+    // Send to GPU
+    self.buffer();
   }
 
   /// Start OpenGL and GLFW
@@ -216,159 +265,109 @@ impl Window {
     }
   }
 
-  /// Couldn't find that in the docs for cgmath
-  pub fn get_identity_mat4() -> Matrix4<f32> {
-    Matrix4::from_cols(
-      Vector4::new(1.0f32, 0.0f32, 0.0f32, 0.0f32),
-      Vector4::new(0.0f32, 1.0f32, 0.0f32, 0.0f32),
-      Vector4::new(0.0f32, 0.0f32, 1.0f32, 0.0f32),
-      Vector4::new(0.0f32, 0.0f32, 0.0f32, 1.0f32),
-    )
-  }
-
-  /// Draw the chess grid
-  fn draw_grid(&mut self) {
-
-    // Colors of the squares
-    let (
-      black,
-      white,
-    ) = (
-      Vector4::new(0.0f32, 0.0f32, 0.0f32, 1.0f32),
-      Vector4::new(1.0f32, 1.0f32, 1.0f32, 1.0f32),
-    );
-
-    // Size of the square
-    let side = 1.0f32 / 4.0f32;
-
-    // Points and indices
-    let (mut points, mut indices) = (vec![], vec![]);
-
-    // Indice counter
-    let mut ic = 0;
-
-    // Square counter
-    let mut sc = 0;
-
-    for px in -4..4 {
-      let x1 = px as f32 * side;
-      let x2 = px as f32 * side + side;
-
-      for py in -4..4 {
-        let y1 = py as f32 * side;
-        let y2 = py as f32 * side + side;
-
-        let p1 = Point3::new(x1, y1, 0.0f32);
-        let p2 = Point3::new(x2, y1, 0.0f32);
-        let p3 = Point3::new(x1, y2, 0.0f32);
-        let p4 = Point3::new(x2, y2, 0.0f32);
-
-        // Reset the color logic every column
-        if sc % 9 == 0 {
-          sc += 1;
-        }
-
-        // What's the color of the square?
-        let mut color = match sc % 2 {
-          0 => black,
-          1 => white,
-          _ => panic!("Impossible."),
-        };
-
-        // Increment square counter
-        sc += 1;
-
-        points.push(Vertice::new(p1, color));
-        points.push(Vertice::new(p2, color));
-        points.push(Vertice::new(p3, color));
-        points.push(Vertice::new(p4, color));
-
-        // Indices
-        indices.push(ic);
-        indices.push(ic+1);
-        indices.push(ic+2);
-        indices.push(ic+1);
-        indices.push(ic+3);
-        indices.push(ic+2);
-
-        ic += 4;
-      }
-    }
-
-    let mut object = GraphicObject::new(self.program);
-    object.update(&points, &indices);
-    self.objects.push(object);
-  }
-
   ///
-  fn draw_pieces(&mut self) {
-    let mapper = |input: usize| -> f32 {
-      let slope = 1.0 * (1 - (-1)) as f32 / (8 - 0) as f32;
-      
-      return (-1.0f32) + slope * (input as f32 - 0.0f32);
-    };
+  fn set_mat4(&self, name: &str, mat: Matrix4<f32>) {
+    let uniform_name_c_str = CString::new(name).unwrap();
 
+    unsafe {
+      gl::UseProgram(self.program);
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.program, uniform_name_c_str.as_ptr()), 1, gl::FALSE, mat.as_ptr());
+    }
+  }
+
+  /// Draw the chess board
+  fn buffer(&mut self) {
+    // Let's get rid of everything for now
+    self.models.clear();
+
+    // Draw the board
+    let board = BoardModel::new(self.program);
+
+    self.models.push(Box::new(board));
+
+    // Draw the pieces
     for y in 0..8 {
       for x in 0..8 {
+        // No piece, no drawing
         if !self.board.has_piece((x, y)) {
           continue;
         }
 
-        let x_coord = mapper(x);
-        let y_coord = -mapper(y) - 0.25f32;
-
-        let color = match self.board.get_color((x, y)) {
-          Color::Black => Vector4::new(1.0f32, 0.5f32, 0.0f32, 1.0f32),
-          Color::White => Vector4::new(30.0f32 / 256.0f32, 179.0f32 / 256.0f32, 0.0f32, 1.0f32),
-          Color::Nil => Vector4::new(0.0f32, 0.0f32, 0.0f32, 0.0f32),
-        };
-
-        let center = Vertice::new(
-          Point3::new(x_coord, y_coord, -0.1f32),
-          color,
+        let mut piece = PieceModel::new(
+          self.program, x, y, self.board.get_color((x, y))
         );
 
-        let center = center.translate(Vector3::new(0.25f32 / 2.0f32, 0.25f32 / 2.0f32, 0.0f32));
-
-        let p1 = center.translate(Vector3::new(0.1f32, -0.1f32, 0.0f32));
-        let p2 = center.translate(Vector3::new(0.0f32, 0.1f32, 0.0f32));
-        let p3 = center.translate(Vector3::new(-0.1f32, -0.1f32, 0.0f32));
-
-        let points = vec![p1, p2, p3];
-        let indices = vec![0, 1, 2];
-
-        let mut obj = GraphicObject::new(self.program);
-        obj.update(&points, &indices);
-        self.objects.push(obj);
+        self.models.push(Box::new(piece));
       }
     }
   }
 
-  /// Window should remain open
-  pub fn should_close(&self) -> bool {
-    return self.window.should_close() || self.should_close;
-  }
+  // fn draw_something(&mut self) {
+    // let models = model_loader::load("/home/lev/Projects/rust-chess/src/models/chess.obj");
 
-  pub fn close(&mut self) {
-    self.should_close = true;
-  }
+    // let model = &models[22].mesh.clone();
 
-  pub fn update_board(&mut self, board: Board) {
-    self.board = board;
-    self.objects.clear();
-    self.draw_grid();
-    self.draw_pieces();
+    // let (positions, indices) = (&model.positions, &model.indices.clone());
+
+    // let mut points = Vec::new();
+
+    // for idx in 0..positions.len()/3 {
+    //   let vertice = Vertice::new(
+    //     Point3::new(positions[idx]/100.0, positions[idx+1]/100.0, positions[idx+2]/100.0),
+    //     Vector4::new(1.0f32, 1.0f32, 1.0f32, 1.0f32),
+    //   );
+
+    //   points.push(vertice);
+    // }
+
+    // let mut obj = GraphicObject::new(self.program);
+    // obj.update(&points, &indices.iter().map(|x| { *x as i32 }).collect());
+    // self.objects.push(obj);
+  // }
+
+  /// Process mouse and keyboard events.
+  /// TODO: decide what to do here.
+  #[allow(dead_code)]
+  fn process_events(&mut self) {
+    let (_x, _y) = self.window.get_cursor_pos();
+
+    if self.window.get_key(Key::Escape) == Action::Press {
+      self.window.set_should_close(true);
+    }
+
+    if self.window.get_key(Key::W) == Action::Press {
+      self.camera.process_keyboard(camera::CameraMovement::Forward, 0.1);
+    }
+
+    if self.window.get_key(Key::A) == Action::Press {
+      self.camera.process_keyboard(camera::CameraMovement::Left, 0.1);
+    }
+
+    if self.window.get_key(Key::D) == Action::Press {
+      self.camera.process_keyboard(camera::CameraMovement::Right, 0.1);
+    }
+
+    if self.window.get_key(Key::S) == Action::Press {
+      self.camera.process_keyboard(camera::CameraMovement::Backward, 0.1);
+    }
   }
 
   /// Draw the game
   pub fn draw(&mut self) {
     unsafe {
+      // Pretty background color
       gl::ClearColor(0.2, 0.3, 0.3, 1.0);
       gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
     }
 
-    for object in &self.objects {
-      object.draw();
+    self.process_events();
+
+    // The view is unchanged.
+    self.set_mat4("view", <Matrix4<f32> as One>::one());
+
+    // Draw all the models.
+    for model in &self.models {
+      model.draw();
     }
 
     self.window.swap_buffers();

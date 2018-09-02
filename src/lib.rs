@@ -20,6 +20,8 @@ extern crate gl;
 extern crate glfw;
 extern crate cgmath;
 
+extern crate tobj;
+
 // Modules
 pub mod board;
 pub mod game;
@@ -28,7 +30,11 @@ pub mod protocol;
 pub mod connection;
 pub mod helpers;
 pub mod graphic_object;
+pub mod model_loader;
+pub mod camera;
 pub mod gui;
+
+pub mod models;
 
 use game::Game;
 
