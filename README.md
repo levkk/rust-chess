@@ -2,6 +2,20 @@
 
 Implementation of chess in Rust.
 
+## Requirements
+
+### Linux & macOS
+This program is using native OpenGL and GLFW. So, you'll need pretty much everything that comes up from
+
+```
+$ pkg-config --libs --static gl glfw3
+```
+
+### Windows
+Same, you'll need your graphics card OpenGL driver and GLFW installed. Never tried to compile a Rust program with OpenGL
+bindings on Windows, so let me know if it works. :)
+
+
 ## Build & Run
 ```
 $ cargo run

@@ -346,6 +346,8 @@ impl Board {
   /// `piece`: &GamePiece
   ///
   /// Return: bool (true if valid, else false).
+  ///
+  /// TODO: Collision, e.g. bishops can't jump over pieces, but knights can.
   fn validate_move(&self, from: (usize, usize), to: (usize, usize), piece: &GamePiece) -> bool {
     
     let (dx, dy) = Self::d(from, to);
