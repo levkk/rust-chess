@@ -13,6 +13,8 @@ extern crate lazy_static;
 extern crate serde_derive;
 
 extern crate serde;
+
+#[macro_use]
 extern crate serde_json;
 
 // Graphics
@@ -21,6 +23,9 @@ extern crate glfw;
 extern crate cgmath;
 
 extern crate tobj;
+
+// HTTP
+extern crate reqwest;
 
 // Modules
 pub mod board;

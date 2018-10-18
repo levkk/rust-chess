@@ -1,6 +1,10 @@
+extern crate reqwest;
+extern crate serde_json;
+
+use serde_json::value::Value as JsonValue;
 
 // Networking
-use std::net;
+use std::{net, thread, time, collections};
 use std::io::{Read, Write};
 
 // String
@@ -14,6 +18,12 @@ use helpers::input;
 
 // Protocol
 use protocol::Message;
+
+// Retry attempts for http connection
+const RETRY_ATTEMPTS_HTTP: i32 = 5;
+
+
+
 
 /// Connection interface
 pub trait Connection {
@@ -211,3 +221,105 @@ impl Connection for SelfConnection {
     Ok(String::from("Nothing"))
   }
 }
+
+pub struct HttpConnection {
+  endpoint: String,
+  client: reqwest::Client,
+  name: String,
+  previous_message: String,
+  other_player: String,
+}
+
+impl HttpConnection {
+  pub fn new(endpoint: &str, client_name: &str) -> Result<HttpConnection, String> {
+    let join_url = format!("{}/clients", endpoint);
+
+    let client = reqwest::Client::new();
+    let body = json!({
+      "name": client_name,
+      "nextMessage": {
+        "message": format!("hello {}", client_name),
+      },
+    });
+
+    let result = match client.post(&join_url).json(&body).send() {
+      Ok(mut res) => res.text().unwrap(),
+      Err(err) => return Err(err.to_string()),
+    };
+
+    println!("Connection: {}", result);
+
+    Ok(HttpConnection{
+      endpoint: String::from(endpoint),
+      client,
+      name: String::from(client_name),
+      previous_message: String::from(""),
+      other_player: String::from("one"),
+    })
+  }
+}
+
+impl Connection for HttpConnection {
+  fn send_message(&mut self, message: &str) -> bool {
+    println!("Sending http message: {}", message);
+    self.client.post(format!("{}/clients/{}/message", self.endpoint, self.name).as_str())
+      .json(&json!({"message": message}))
+      .send()
+    .unwrap();
+
+      true
+  }
+
+  fn wait_for_message(&mut self) -> Result<String, String> {
+    let mut attempts = RETRY_ATTEMPTS_HTTP;
+
+    loop {
+      let mut response = self.client
+        .get(format!("{}/clients/{}", self.endpoint, self.other_player).as_str())
+        .send()
+      .unwrap();
+
+      if response.status().is_server_error() {
+        println!("Server error: {}", response.status());
+      }
+
+      if response.status().is_client_error() {
+        panic!("Client error: {}", response.status());
+      }
+
+      let client: JsonValue = match response.json() {
+        Ok(client) => client,
+        Err(err) => panic!("Bad response from server: {}", err),
+      };
+
+      println!("Client: {}", client);
+
+      let message = String::from(
+        client["nextMessage"]
+        .as_object()
+        .unwrap()["message"]
+        .as_str()
+        .unwrap()
+      );
+
+      if message != self.previous_message {
+        self.previous_message = message.clone();
+        return Ok(message);
+      }
+
+      println!("No new message. Waiting a second to retry...");
+
+      thread::sleep(time::Duration::from_millis(1000));
+    }
+  }
+
+  fn get_message(&self) -> Result<String, String> {
+    Ok(String::from("Nothing"))
+  }
+}
+
+// impl Connection for HttpConnection {
+//   fn send_message(&mut self, message: &str) -> bool {
+
+//   }
+// }

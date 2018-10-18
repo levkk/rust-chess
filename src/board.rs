@@ -293,13 +293,24 @@ impl Board {
     assert_eq!(letter.len(), 1);
 
     lazy_static! {
-    static ref ALPHABET: [&'static str; 8] = ["A", "B", "C", "D", "E", "F", "G", "H"];
+      static ref ALPHABET: [&'static str; 8] = ["A", "B", "C", "D", "E", "F", "G", "H"];
     }
 
     match ALPHABET.iter().position(|&x| x == letter) {
       Some(x) => x,
       None => panic!("letter_to_column: Unknown column given."),
     }
+  }
+
+  ///
+  fn column_to_letter(column: usize) -> &'static str {
+    assert!(column < 8);
+
+    lazy_static! {
+      static ref ALPHABET: [&'static str; 8] = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    }
+
+    ALPHABET[column]
   }
 
   /// Convert a number row to an offset
@@ -314,6 +325,14 @@ impl Board {
     let number = number.parse::<u8>().unwrap();
 
     (8 - number) as usize
+  }
+
+
+  ///
+  fn row_to_number(row: usize) -> String {
+    assert!(row < 8);
+
+    (8 - row).to_string()
   }
 
   /// Make a move.
@@ -336,6 +355,15 @@ impl Board {
     );
 
     self.move_piece(from, to)
+  }
+
+
+  ///
+  pub fn position_to_notation(position: (usize, usize)) -> String {
+    let letter = Self::column_to_letter(position.0);
+    let number = Self::row_to_number(position.1);
+
+    String::from(letter) + &number
   }
 
   /// Make sure a piece makes a legal move.
@@ -451,5 +479,16 @@ impl fmt::Display for Board {
     }
 
     Ok(())
+  }
+}
+
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_board_position_to_notation() {
+    let position = (0, 0);
+
+    assert_eq!(String::from("A0"), Board::board_position_to_notation(position));
   }
 }

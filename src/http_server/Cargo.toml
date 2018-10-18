@@ -1,0 +1,13 @@
+[package]
+name = "http_server"
+version = "0.1.0"
+authors = ["Lev <lev.kokotov@gmail.com>"]
+
+[dependencies]
+rocket = "0.3.17"
+rocket_codegen = "0.3.17"
+rocket_contrib = "0.3.17"
+serde = "*"
+serde_json = "*"
+serde_derive = "*"
+# rust_chess = { path = "../../" }

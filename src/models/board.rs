@@ -110,6 +110,39 @@ impl Model for Board {
     self.object.update(&points, &indices);
   }
 
+
+  ///
+  fn dragging(&mut self, _x: f32, _y: f32) {
+    // Do nothing
+  }
+
+
+  ///
+  fn dropping(&mut self, _x: f32, _y: f32) {
+    // Do nothing
+  }
+
+  ///
+  fn is_hovering(&self, _x: f32, _y: f32) -> bool {
+    // Never
+    false
+  }
+
+  ///
+  fn is_dragging(&self) -> bool {
+    false // never
+  }
+
+
+  fn board_position(&self) -> (usize, usize) {
+    // Mhmmm..
+    (0, 0)
+  }
+
+  fn calculate_board_position(&self, _x: f32, _y: f32) -> (usize, usize) {
+    (0, 0)
+  }
+
   /// Enable/disable debug.
   fn debug(&mut self, debug: bool) {
     self.object.debug(debug);
