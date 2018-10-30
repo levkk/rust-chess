@@ -237,9 +237,6 @@ impl HttpConnection {
     let client = reqwest::Client::new();
     let body = json!({
       "name": client_name,
-      "nextMessage": {
-        "message": format!("hello {}", client_name),
-      },
     });
 
     let result = match client.post(&join_url).json(&body).send() {
@@ -275,7 +272,7 @@ impl Connection for HttpConnection {
 
     loop {
       let mut response = self.client
-        .get(format!("{}/clients/{}", self.endpoint, self.other_player).as_str())
+        .get(&format!("{}/clients/{}", self.endpoint, self.other_player))
         .send()
       .unwrap();
 
@@ -289,7 +286,7 @@ impl Connection for HttpConnection {
 
       let client: JsonValue = match response.json() {
         Ok(client) => client,
-        Err(err) => panic!("Bad response from server: {}", err),
+        Err(err) => panic!("Bad JSON from server: {}", err),
       };
 
       println!("Client: {}", client);
@@ -315,6 +312,12 @@ impl Connection for HttpConnection {
 
   fn get_message(&self) -> Result<String, String> {
     Ok(String::from("Nothing"))
+  }
+}
+
+impl Drop for HttpConnection {
+  fn drop(&mut self) {
+    self.client.delete(&format!("{}/clients/{}", self.endpoint, self.name)).send();
   }
 }
 
