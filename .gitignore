@@ -3,5 +3,6 @@
 *.zip
 test.json
 /src/http_server/target/
+/src/http_server/.env
 .env
 *.sqlite3

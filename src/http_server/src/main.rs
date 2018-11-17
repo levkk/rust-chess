@@ -23,6 +23,12 @@ mod db;
 mod schema;
 mod util;
 
+// CRUD
+#[allow(unused_imports)]
+use db::C;
+#[allow(unused_imports)]
+use db::RUD;
+
 // Rocket
 use rocket::response::status;
 use rocket::State;
@@ -101,13 +107,12 @@ impl From<db::Client> for Client {
 }
 
 // Deserialization
-impl From<Client> for db::Client {
+impl From<Client> for db::NewClient {
   fn from(client: Client) -> Self {
-    db::Client{
-      id: None,
+    db::NewClient {
       name: client.name,
       rank: None,
-      online: false,
+      online: true,
       last_login: None,
     }
   }
@@ -131,47 +136,50 @@ mod clients {
 
   #[post("/clients", format = "application/json", data = "<client>")]
   fn create(
-    client: Json<Client>, // Proper client check
+    client: Json<Client>,
   ) -> Result<status::Created<Json<Client>>, status::BadRequest<&'static str>> {
     
+    // Establish connection to DB
     let conn = db::connection();
 
-    match db::Client::exists(client.name.clone(), &conn) {
-      true => {
-        return Err(
-          status::BadRequest(
-            Some(CLIENT_EXISTS_ERROR)
-          )
-        );
-      },
+    // Deserialize
+    let db_client = db::NewClient::from(client.clone());
 
-      false => (),
-    };
-
-    let url = format!("/clients/{}", client.name.clone());
-    let db_client = db::Client::from(client.clone());
-
-    match db::Client::create(db_client, &conn) {
-      Ok(_client) => (),
-      Err(err) => println!("DB error: {}", err),
-    };
-
-    Ok(status::Created(
-      url,
-      Some(Json(client.clone()))
-    ))
+    // Execute
+    match db::NewClient::create(db_client, &conn) {
+      Ok(client) => Ok(
+        status::Created(
+          format!("/clients/{}", client.id.to_string()), // Generate the URL
+          Some(Json(Client::from(client))),
+        )
+      ),
+      Err(_err) => Err(
+        status::BadRequest(
+          Some(CLIENT_EXISTS_ERROR)
+        )
+      ),
+    }
   }
 
-  #[get("/clients/<client>")]
-  fn retrieve(client: &RawStr, state: State<ClientList>) -> Option<Json<Client>> {
-    let client_list = state.lock().unwrap();
-    let key = String::from(client.as_str());
+  #[get("/clients/<id>")]
+  fn retrieve(id: &RawStr) -> Option<Json<Client>> {
+    let conn = db::connection();
 
-    if !client_list.contains_key(&key) {
-      return None;
+    match id.as_str().parse::<i64>() {
+      // Valid integer
+      Ok(id) => {
+        match db::Client::retrieve(id, &conn) {
+          // Found the client
+          Some(client) => Some(Json(Client::from(client))),
+
+          // Nope!
+          None => None,
+        }
+      },
+
+      // Not a valid integer
+      Err(_) => None,
     }
-
-    Some(Json(client_list.get(&key).unwrap().clone()))
   }
 
   #[delete("/clients/<client>")]

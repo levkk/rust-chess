@@ -1,8 +1,7 @@
 #![allow(proc_macro_derive_resolution_fallback)]
-
 table! {
     client_games (id) {
-        id -> Nullable<Int8>,
+        id -> Int8,
         client_id -> Int8,
         game_id -> Int8,
     }
@@ -10,7 +9,7 @@ table! {
 
 table! {
     clients (id) {
-        id -> Nullable<Int8>,
+        id -> Int8,
         name -> Varchar,
         rank -> Nullable<Int8>,
         online -> Bool,
@@ -20,7 +19,7 @@ table! {
 
 table! {
     games (id) {
-        id -> Nullable<Int8>,
+        id -> Int8,
         started_at -> Nullable<Timestamp>,
         ended_at -> Nullable<Timestamp>,
     }
