@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  # HTTP server
+  web:
+    build: .
+    ports:
+      - "8000:80"
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@database:5432/postgres"
+      ROCKET_ENV: stage
+    volumes:
+      - web_app:/app
+
+  # PostgreSQL database with persistent storage
+  database:
+    container_name: database
+    image: "postgres:10.6"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    volumes:
+      - db_lib:/var/lib/postgresql
+
+volumes:
+  db_lib:
+  web_app:
