@@ -1,41 +1,44 @@
+// HTTP RESTful server
+
+// Required by Rocket
 #![feature(plugin)]
 #![feature(custom_attribute)]
 #![plugin(rocket_codegen)]
-
+ 
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate serde_derive;
 
 extern crate dotenv;
-
 extern crate rocket;
-use rocket::response::status;
-use rocket::State;
-use rocket::request::Request;
-// use rocket::data::{self, FromData};
-use rocket::http::RawStr;
-// use rocket::Outcome::*;
-
 extern crate rocket_contrib;
-
-use rocket_contrib::Json;
-
 extern crate serde;
 extern crate serde_json;
 extern crate chrono;
+extern crate syn;
 
-#[macro_use]
-extern crate serde_derive;
+// Modules
+mod db;
+mod schema;
+mod util;
+
+// Rocket
+use rocket::response::status;
+use rocket::State;
+use rocket::request::Request;
+use rocket::http::RawStr;
+use rocket_contrib::Json;
+
+// Std lib
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-type ClientList = Mutex<HashMap<String, Client>>;
-
-mod util;
+#[allow(unused_imports)]
 use util::Filterable;
 
-// extern crate diesel;
-mod schema;
-mod db;
+//
+type ClientList = Mutex<HashMap<String, Client>>;
 
 /// Errors
 static CLIENT_EXISTS_ERROR: &'static str =
@@ -97,6 +100,7 @@ impl From<db::Client> for Client {
   }
 }
 
+// Deserialization
 impl From<Client> for db::Client {
   fn from(client: Client) -> Self {
     db::Client{
@@ -114,13 +118,12 @@ mod clients {
   use super::*;
 
   #[get("/clients")]
-  fn list(client_list: State<ClientList>) -> Json<Vec<Client>> {
+  fn list() -> Json<Vec<Client>> {
     let conn = db::connection();
-    let all_clients = db::Client::online(25, &conn).iter().map(|client| Client::from(client.clone())).collect();
-    // let all_clients = client_list.lock().unwrap()
-    //   .values()
-    //   .map(|client| client.clone())
-    // .collect();
+    let all_clients = db::Client::online(25, &conn)
+      .iter()
+      .map(|client| Client::from(client.clone()))
+      .collect();
 
     Json(all_clients)
   }
@@ -129,10 +132,8 @@ mod clients {
   #[post("/clients", format = "application/json", data = "<client>")]
   fn create(
     client: Json<Client>, // Proper client check
-    state: State<ClientList>
   ) -> Result<status::Created<Json<Client>>, status::BadRequest<&'static str>> {
     
-    let mut client_list = state.lock().unwrap();
     let conn = db::connection();
 
     match db::Client::exists(client.name.clone(), &conn) {
@@ -147,24 +148,8 @@ mod clients {
       false => (),
     };
 
-    // if client_list.contains_key(&client.name.clone()) {
-    //   return Err(
-    //     status::BadRequest(
-    //       Some(CLIENT_EXISTS_ERROR)
-    //     )
-    //   );
-    // }
-
-    // client_list
-    //   .insert(
-    //     client.name.clone(),
-    //     client.clone(),
-    // );
-
     let url = format!("/clients/{}", client.name.clone());
-
     let db_client = db::Client::from(client.clone());
-    
 
     match db::Client::create(db_client, &conn) {
       Ok(_client) => (),
@@ -254,6 +239,7 @@ mod clients {
       return None;
     }
 
+    #[allow(unused_assignments)]
     let mut other_player = Client::default();
 
     match client_list.get_filter_mut(&|val: &Client| {

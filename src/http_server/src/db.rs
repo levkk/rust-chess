@@ -5,12 +5,17 @@ extern crate diesel;
 extern crate dotenv;
 extern crate chrono;
 
+extern crate syn;
+extern crate proc_macro;
+
 use diesel::prelude::*;
 use diesel::result::{Error, DatabaseErrorKind};
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use std::env;
 use std::time::SystemTime;
+use std;
+
 
 
 // use diesel::sql_types::Nullable;
@@ -37,7 +42,7 @@ pub struct Game {
 }
 
 #[table_name="client_games"]
-#[derive(Serialize, Deserialize, Queryable, Insertable, Identifiable, Associations, AsChangeset)]
+#[derive(Clone, Serialize, Deserialize, Queryable, Insertable, Identifiable, Associations, AsChangeset)]
 #[belongs_to(Client)]
 #[belongs_to(Game)]
 pub struct ClientGame {
@@ -46,12 +51,13 @@ pub struct ClientGame {
   pub game_id: i64,
 }
 
-pub trait CRUD<T> {
-  fn create(object: T, connection: &PgConnection) -> Result<T, String>;
-  fn list(limit: i64, offset: i64, connection: &PgConnection) -> Vec<T>;
-  fn retrieve(id: i64, connection: &PgConnection) -> Option<T>;
-  fn update(&self, object: T, connection: &PgConnection) -> bool ;
-  fn delete(object: T, connection: &PgConnection) -> bool;
+pub trait CRUD {
+  fn create(object: Self, connection: &PgConnection) -> Result<Self, String> where Self: std::marker::Sized;
+  fn list(limit: i64, offset: i64, connection: &PgConnection) -> Vec<Self> where Self: std::marker::Sized;
+  fn retrieve(id: i64, connection: &PgConnection) -> Option<Self> where Self: std::marker::Sized;
+  fn update(&self, object: Self, connection: &PgConnection) -> bool where Self: std::marker::Sized;
+  fn delete(object: Self, connection: &PgConnection) -> bool where Self: std::marker::Sized;
+  fn save(&mut self, connection: &PgConnection);
 }
 
 macro_rules! crud {
@@ -100,11 +106,45 @@ macro_rules! crud {
         Err(_) => false,
       }
     }
+
+    fn save(&mut self, _connection: &PgConnection) {
+      unimplemented!();
+      // match self.id {
+      //   None => {
+      //     connection
+      //       .build_transaction()
+      //       .read_write()
+      //       .run(|| {
+      //         let _ = Self::create(self.clone(), connection).unwrap();
+      //         match $table::table.order($table::id.desc()).first::<Self>(connection) {
+      //           Ok(object) => {
+      //             self.id = object.id.clone();
+      //             Ok(())
+      //           },
+      //           Err(_) => {
+      //             panic!("Database error: no rows after successful insert.");
+      //           },
+      //         }
+      //       });
+      //   },
+      //   Some(id) => unimplemented!(),
+      // };
+    }
   )
 }
 
-impl CRUD<ClientGame> for ClientGame {
+impl CRUD for ClientGame {
   crud!(client_games);
+}
+
+impl ClientGame {
+  pub fn new(client: &Client, game: &Game) -> Self {
+    ClientGame{
+      id: None,
+      client_id: client.id.unwrap(),
+      game_id: game.id.unwrap(),
+    }
+  }
 }
 
 impl Client {

@@ -1,3 +1,5 @@
+#![allow(proc_macro_derive_resolution_fallback)]
+
 table! {
     client_games (id) {
         id -> Nullable<Int8>,
