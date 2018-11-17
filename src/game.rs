@@ -47,6 +47,7 @@ impl Game {
     }
   }
 
+
   /// Make a move.
   /// 
   /// Parameters:
@@ -134,6 +135,7 @@ impl Game {
       "client" => self.build_tcp_client(),
       "host" => self.build_tcp_host(),
       "self" => Client::new("self"),
+      "http" => self.build_http_client(),
       other => panic!("Unknown client chosen: {}", other),
     };
 
@@ -141,10 +143,11 @@ impl Game {
 
     let (board_sender, board_receiver): (Sender<Board>, Receiver<Board>) = channel();
     let (close_sender, close_receiver): (Sender<bool>, Receiver<bool>) = channel();
+    let (gui_sender, gui_receiver): (Sender<String>, Receiver<String>) = channel();
 
     // GUI
     let handle = thread::spawn(move || {
-      let mut window = Window::new(756, 756);
+      let mut window = Window::new(756, 756, gui_sender);
       // let mut board = Board::new();
 
       while !window.should_close() {
@@ -177,10 +180,11 @@ impl Game {
     board_sender.send(self.board.clone()).unwrap();
 
     loop {
+
       println!("\n\r{}\n\r", self);
 
       if client.host {
-        if self.other_player_turn(&mut client) {
+        if self.other_player_turn(&mut client, &board_sender) {
           close_sender.send(true).unwrap();
           break;
         }
@@ -189,7 +193,7 @@ impl Game {
 
 
         // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client) {
+        if self.my_turn(&mut client, &gui_receiver) {
           close_sender.send(true).unwrap();
           break;
         }
@@ -199,14 +203,14 @@ impl Game {
 
       else {
         // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client) {
+        if self.my_turn(&mut client, &gui_receiver) {
           close_sender.send(true).unwrap();
           break;
         }
 
         board_sender.send(self.board.clone()).unwrap();
 
-        if self.other_player_turn(&mut client) {
+        if self.other_player_turn(&mut client, &board_sender) {
           close_sender.send(true).unwrap();
           break;
         }
@@ -219,47 +223,54 @@ impl Game {
     handle.join().unwrap();
   }
 
-  fn my_turn(&mut self, client: &mut Client) -> bool {
+  fn my_turn(&mut self, client: &mut Client, gui_receiver: &Receiver<String>) -> bool {
     // Loop until a valid move is made or we exit
     let mut should_exit = false;
 
-    loop {
-      print!(" > ");
+    let mut input = String::new();
+    let mut received_input = false;
 
-      let input = helpers::input();
+    while !received_input {
+      match gui_receiver.recv_timeout(Duration::from_millis(100)) {
+        Ok(gui_input) => {
+          received_input = true;
+          input = gui_input;
+        },
+        Err(_) => (), // Received nothing yet
+      };
+    }
 
-      if input == "exit" {
-        should_exit = true;
+    if input.as_str() == "exit" {
 
-        client.send_message(Message::Bye, "");
-        break;
-      }
+      client.send_message(Message::Bye, "");
 
-      else {
-        // Make move
-        match self.make_move(&input) {
-          Ok(_) => {
-            // Tell the other player about it
-            client.send_message(Message::MakeMove, &input);
+      should_exit = true;
+    }
 
-            // Print board
-            println!("\n\r{}\n\r", self);
-            break;
-          },
+    else {
+      // Make move
+      match self.make_move(&input) {
+        Ok(_) => {
+          // Tell the other player about it
+          client.send_message(Message::MakeMove, &input);
 
-          Err(err) => {
-            println!("{}", err);
-            println!("{}", input);
-            continue;
-          }
-        };
-      }
+          // Print board
+          println!("\n\r{}\n\r", self);
+        },
+
+        Err(err) => {
+          println!("{}", err);
+          println!("{}", input);
+        }
+      };
+
+      should_exit = false;
     }
 
     should_exit
   }
 
-  fn other_player_turn(&mut self, client: &mut Client) -> bool {
+  fn other_player_turn(&mut self, client: &mut Client, board_sender: &Sender<Board>) -> bool {
     let mut should_exit = false;
 
     // Loop until a valid move is received
@@ -279,6 +290,7 @@ impl Game {
             Ok(_) => { 
               // Print board
               println!("\n\r{}\n\r", self);
+              board_sender.send(self.board.clone()).unwrap();
               break; 
             },
             
@@ -317,6 +329,14 @@ impl Game {
     let addr = helpers::input();
 
     Client::host(&addr)
+  }
+
+  fn build_http_client(&self) -> Client {
+    print!("Remove address > ");
+
+    let addr = helpers::input();
+
+    Client::new(&addr)
   }
 }
 

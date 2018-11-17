@@ -7,7 +7,7 @@ use regex::RegexSet;
 
 use connection::{
   Connection, EchoConnection, TcpConnection,
-  SelfConnection,
+  SelfConnection, HttpConnection,
 };
 
 // Messages and Regexes
@@ -43,6 +43,15 @@ impl Client {
       };
 
       connection = Box::new(tcp_connection);
+    }
+
+    else if server.starts_with("http://") {
+      let http_client = match HttpConnection::new(&server, "my_name") {
+        Ok(client) => client,
+        Err(err) => panic!("Could not connect to server: {}", err),
+      };
+
+      connection = Box::new(http_client);
     }
 
     else {
@@ -110,6 +119,8 @@ impl Client {
         format!("{} {}", Message::MakeMove, payload)
       },
     };
+
+    println!("Sending message in client: {}", message);
 
     let _ = self.connection.send_message(&contents);
   }

@@ -2,3 +2,6 @@
 **/*.rs.bk
 *.zip
 test.json
+/src/http_server/target/
+.env
+*.sqlite3

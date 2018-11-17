@@ -5,7 +5,7 @@ use gl::types::*;
 
 // GLFW
 extern crate glfw;
-use glfw::{Key, Action, Context};
+use glfw::{Key, Action, Context, MouseButton};
 
 // Math
 use cgmath::{Matrix, Matrix4, One};
@@ -22,10 +22,10 @@ use models::piece::Piece as PieceModel;
 use board::Board;
 
 // Std
-use std::sync::mpsc::Receiver;
 use std::ffi::CString;
 use std::ptr;
 use std::str;
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 
 const vertex_shader_source: &str = r#"
@@ -96,11 +96,17 @@ pub struct Window {
 
   // Should the window close?
   should_close: bool,
+
+  // Communication c
+  gui_sender: Sender<String>,
+
+  // The state of drag & drop.
+  dragging: bool,
 }
 
 impl Window {
   /// Initialize graphics
-  pub fn new(width: u32, height: u32) -> Window {
+  pub fn new(width: u32, height: u32, gui_sender: Sender<String>) -> Window {
 
     // Start-up OpenGL
     let (glfw, window, events) = Window::init_glfw(width, height);
@@ -123,6 +129,8 @@ impl Window {
       models: Vec::new(),
       board: Board::new(),
       should_close: false,
+      gui_sender,
+      dragging: false,
     };
 
     window.draw();
@@ -329,7 +337,7 @@ impl Window {
   /// TODO: decide what to do here.
   #[allow(dead_code)]
   fn process_events(&mut self) {
-    let (_x, _y) = self.window.get_cursor_pos();
+    let (x, y) = self.window.get_cursor_pos();
 
     if self.window.get_key(Key::Escape) == Action::Press {
       self.window.set_should_close(true);
@@ -350,6 +358,77 @@ impl Window {
     if self.window.get_key(Key::S) == Action::Press {
       self.camera.process_keyboard(camera::CameraMovement::Backward, 0.1);
     }
+
+    if self.window.get_mouse_button(MouseButton::Button1) == Action::Press {
+      let (x_gl, y_gl) = self.map_window_to_gl(x as i32, y as i32);
+
+      for model in self.models.iter_mut() {
+        if model.is_hovering(x_gl, y_gl) {
+          // If no active drag & drop is taking place, the hovering over is sufficient to start
+          // drag & drop.
+          if !self.dragging {
+            self.dragging = true;
+            
+            model.dragging(x_gl, y_gl);
+          }
+
+          // If drag & drop is active, only drag the model that's being dragged already
+          else {
+            if model.is_dragging() {
+              model.dragging(x_gl, y_gl);
+            }
+          }
+
+          break;
+        }
+
+        if model.is_dragging() {
+          model.dragging(x_gl, y_gl);
+          break;
+        }
+      }
+
+
+      //  self.models[3].dragging(x_gl, y_gl);
+    }
+
+    if self.window.get_mouse_button(MouseButton::Button1) == Action::Release {
+      let (x_gl, y_gl) = self.map_window_to_gl(x as i32, y as i32);
+
+      // println!("Releasing {} {}", x_gl, y_gl);
+
+      for model in self.models.iter_mut() {
+        if model.is_dragging() {
+          let current_position = model.board_position();
+          let future_position = model.calculate_board_position(x_gl, y_gl);
+          let from = Board::position_to_notation(current_position);
+          let to = Board::position_to_notation(future_position);
+          let notation = from + &to;
+          self.gui_sender.send(notation).unwrap();
+
+          // println!("{:?} {:?}", current_position, future_position);
+
+          // let notation = Board::board_position_to_notation(current_position) + &Board::board_position_to_notation(future_position);
+
+          // self.gui_sender.send(notation);
+          model.dropping(x_gl, y_gl);
+          self.dragging = false;
+          // self.gui_sender.send(Board::board_position_to_notation(x_board, y_board));
+          break;
+        }
+      }
+    }
+  }
+
+  /// Map window coordinates to OpenGL coordinates.
+  fn map_window_to_gl(&self, x: i32, y: i32) -> (f32, f32) {
+    let slope_x = (1.0 - (-1.0)) / (self.width - 0) as f32;
+    let slope_y = (1.0 - (-1.0)) / (self.height - 0) as f32;
+
+    let x_gl = -1.0 + slope_x * x as f32;
+    let y_gl = -(-1.0 + slope_y * y as f32); // Flip the y axis
+
+    (x_gl, y_gl)
   }
 
   /// Draw the game
@@ -375,13 +454,26 @@ impl Window {
   }
 }
 
+impl Drop for Window {
+  // TODO: Terminate GLFW and clean-up
+  fn drop(&mut self) {
+    // self.glfw.terminate();
+  }
+}
+
 #[cfg(test)]
 mod tests {
 
   use super::*;
 
   #[test]
-  fn test_init_graphics() {
-    let _window = Window::new(512, 512);
+  fn test_window_functions() {
+    let (gui_sender, _gui_receiver): (Sender<(usize, usize)>, Receiver<(usize, usize)>) = channel();
+    let window = Window::new(256, 100, gui_sender);
+
+    let (x, y) = window.map_window_to_gl(128, 50);
+
+    assert_eq!(x, 0.0);
+    assert_eq!(y, 0.0);
   }
 }
