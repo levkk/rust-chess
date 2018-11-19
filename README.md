@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/levkk/rust-chess.svg?branch=master)](https://travis-ci.com/levkk/rust-chess)
+
 # Rust Chess
 
 Implementation of chess in Rust.
