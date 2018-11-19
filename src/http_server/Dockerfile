@@ -8,4 +8,6 @@ WORKDIR /app
 
 RUN cargo build
 
+COPY entrypoint.sh /app/entrypoint.sh
+
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]

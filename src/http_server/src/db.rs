@@ -14,7 +14,7 @@ extern crate dotenv;
 
 // Diesel imports
 use diesel::prelude::*;
-use diesel::result::{Error, DatabaseErrorKind};
+use diesel::result::Error;
 use diesel::pg::PgConnection;
 
 // .env
@@ -23,7 +23,6 @@ use dotenv::dotenv;
 // Standard library
 use std::env;
 use std::time::SystemTime;
-use std;
 
 // Diesel-generated database schema
 use schema::*;
@@ -79,26 +78,12 @@ pub struct NewClientGame {
   pub game_id: i64,
 }
 
-// Create
-pub trait C<T: Sized> {
-  fn create(object: Self, connection: &PgConnection) -> Result<T, String>;
-}
-
-// Read, update, destroy
-pub trait RUD {
-  fn list(limit: i64, offset: i64, connection: &PgConnection) -> Vec<Self> where Self: std::marker::Sized;
-  fn retrieve(id: i64, connection: &PgConnection) -> Option<Self> where Self: std::marker::Sized;
-  fn update(&self, object: Self, connection: &PgConnection) -> bool where Self: std::marker::Sized;
-  fn delete(object: Self, connection: &PgConnection) -> bool where Self: std::marker::Sized;
-  fn save(&mut self, connection: &PgConnection);
-}
-
+// Generate the create method
 macro_rules! c {
-  ($table:tt, $QueryableObject:tt) => (
-
-    fn create(object: Self, connection: &PgConnection) -> Result<$QueryableObject, String> {
+  ($table:tt, $InsertableObject:tt) => (
+    pub fn create(object: $InsertableObject, connection: &PgConnection) -> Result<Self, String> {
       // Establish a transaction
-      match connection.transaction::<$QueryableObject, Error, _>(|| {
+      match connection.transaction::<Self, Error, _>(|| {
 
         // Insert into the database
         diesel::insert_into($table::table)
@@ -108,35 +93,8 @@ macro_rules! c {
         // Select it back
         $table::table
         .order($table::id.desc())
-        .first::<$QueryableObject>(connection)
+        .first::<Self>(connection)
 
-        // Insert the new row into the table
-        // match diesel::insert_into($table::table)
-        // .values(&object)
-        // .execute(connection) {
-        //   Ok(_) => {
-        //     // Select that row back
-        //     match $table::table
-        //     .order($table::id.desc())
-        //     .first::<$QueryableObject>(connection) {
-        //       // Transaction completes successfully
-        //       Ok(object) => Ok(object),
-
-        //       // We didn't find the row we just inserted, which means the insert failed but database
-        //       // didn't report it. Odd, very unlikely?
-        //       Err(err) => {
-        //         // println!("INSERT for the transaction failed: {}", err);
-        //         Err(err)
-        //       },
-        //     }
-        //   },
-
-        //   // Insert failed because of a contrait or a syntax error
-        //   Err(err) => {
-        //     // println!("INSERT failed because of a constraint or a syntax error: {}", err);
-        //     Err(err)
-        //   },
-        // }
       }) {
         Ok(object) => Ok(object),
         Err(err) => Err(format!("{}", err)),
@@ -145,9 +103,10 @@ macro_rules! c {
   )
 }
 
+// Generate list, retrieve, update, and destroy methods
 macro_rules! rud {
   ($table:tt) => (
-    fn list(limit: i64, offset: i64, connection: &PgConnection) -> Vec<Self> {
+    pub fn list(limit: i64, offset: i64, connection: &PgConnection) -> Vec<Self> {
       match $table::table
         .limit(limit)
         .offset(offset)
@@ -157,7 +116,7 @@ macro_rules! rud {
       }
     }
 
-    fn retrieve(id: i64, connection: &PgConnection) -> Option<Self> {
+    pub fn retrieve(id: i64, connection: &PgConnection) -> Option<Self> {
       match $table::table
         .filter($table::id.eq(id))
         .first::<Self>(connection) {
@@ -166,94 +125,35 @@ macro_rules! rud {
         }
     }
 
-    fn update(&self, object: Self, connection: &PgConnection) -> bool {
+    pub fn update(&self, object: Self, connection: &PgConnection) -> bool {
       match diesel::update(self).set(&object).execute(connection) {
         Ok(_) => true,
         Err(_) => false,
       }
     }
 
-    fn delete(object: Self, connection: &PgConnection) -> bool {
+    pub fn delete(id: i64, connection: &PgConnection) -> bool {
       match diesel::delete(
-        $table::table.filter($table::id.eq(object.id))
+        $table::table.filter($table::id.eq(id))
       )
       .execute(connection) {
         Ok(_) => true,
         Err(_) => false,
       }
     }
-
-    fn save(&mut self, _connection: &PgConnection) {
-      unimplemented!();
-      // match self.id {
-      //   None => {
-      //     connection
-      //       .build_transaction()
-      //       .read_write()
-      //       .run(|| {
-      //         let _ = Self::create(self.clone(), connection).unwrap();
-      //         match $table::table.order($table::id.desc()).first::<Self>(connection) {
-      //           Ok(object) => {
-      //             self.id = object.id.clone();
-      //             Ok(())
-      //           },
-      //           Err(_) => {
-      //             panic!("Database error: no rows after successful insert.");
-      //           },
-      //         }
-      //       });
-      //   },
-      //   Some(id) => unimplemented!(),
-      // };
-    }
-  )
+  );
 }
 
-// impl C for NewClientGame {
-//   c!(client_games);
-// }
-
-impl RUD for ClientGame {
-  rud!(client_games);
-}
-
-impl ClientGame {
-  // pub fn new(client: &Client, game: &Game) -> Self {
-  //   ClientGame{
-  //     id: None,
-  //     client_id: client.id.unwrap(),
-  //     game_id: game.id.unwrap(),
-  //   }
-  // }
-}
-
-impl C<Client> for NewClient {
-  c!(clients, Client);
-}
-
-impl RUD for Client {
-  rud!(clients);
+// Create, retrieve, update, destroy
+macro_rules! crud {
+  ($table:tt, $InsertableObject:tt) => (
+    c!($table, $InsertableObject);
+    rud!($table);
+  );
 }
 
 impl Client {
-  pub fn create(client: NewClient, connection: &PgConnection) -> Result<NewClient, String> {
-    match diesel::insert_into(clients::table)
-      .values(&client)
-      .execute(connection) {
-        Ok(_) => Ok(client),
-        Err(err) => match err {
-          Error::DatabaseError(error_type, _) => match error_type {
-            DatabaseErrorKind::UniqueViolation => {
-              Err(String::from("Unique constraint violation!"))
-            },
-
-            _ => Err(format!("Database internal error: {:?}", error_type))
-          },
-
-          _ => Err(format!("Database error: {}", err)),
-        }
-      }
-  }
+  crud!(clients, NewClient);
 
   pub fn get(name: String, connection: &PgConnection) -> Option<Self> {
     match clients::table

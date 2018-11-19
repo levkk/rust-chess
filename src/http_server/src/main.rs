@@ -24,10 +24,10 @@ mod schema;
 mod util;
 
 // CRUD
-#[allow(unused_imports)]
-use db::C;
-#[allow(unused_imports)]
-use db::RUD;
+// #[allow(unused_imports)]
+// use db::C;
+// #[allow(unused_imports)]
+// use db::RUD;
 
 // Rocket
 use rocket::response::status;
@@ -67,7 +67,7 @@ struct Message {
 /// A connected client
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
-struct Client {
+pub struct Client {
   /// Name of the client must be unique
   name: String,
   /// Serialized board (JSON)
@@ -118,6 +118,37 @@ impl From<Client> for db::NewClient {
   }
 }
 
+macro_rules! rest {
+  ($base_url:tt, $QueryableObject:tt, $InsertableObject:tt, $Serializer:tt) => (
+    #[post($base_url, format = "application/json", data = "<data>")]
+    pub fn create(
+      data: Json<$Serializer>,
+    ) -> Result<status::Created<Json<$Serializer>>, status::BadRequest<&'static str>> {
+      
+      // Establish connection to DB
+      let conn = db::connection();
+
+      // Deserialize
+      let db_client = $InsertableObject::from(data.clone());
+
+      // Execute
+      match $QueryableObject::create(db_client, &conn) {
+        Ok(client) => Ok(
+          status::Created(
+            format!("/clients/{}", client.id.to_string()), // Generate the URL
+            Some(Json($Serializer::from(client))),
+          )
+        ),
+        Err(_err) => Err(
+          status::BadRequest(
+            Some(CLIENT_EXISTS_ERROR)
+          )
+        ),
+      }
+    }
+  );
+}
+
 
 mod clients {
   use super::*;
@@ -133,33 +164,37 @@ mod clients {
     Json(all_clients)
   }
 
+  use db::NewClient as NewClient;
+  use db::Client as DbClient;
 
-  #[post("/clients", format = "application/json", data = "<client>")]
-  fn create(
-    client: Json<Client>,
-  ) -> Result<status::Created<Json<Client>>, status::BadRequest<&'static str>> {
+  rest!("/clients", DbClient, NewClient, Client);
+
+  // #[post("/clients", format = "application/json", data = "<client>")]
+  // fn create(
+  //   client: Json<Client>,
+  // ) -> Result<status::Created<Json<Client>>, status::BadRequest<&'static str>> {
     
-    // Establish connection to DB
-    let conn = db::connection();
+  //   // Establish connection to DB
+  //   let conn = db::connection();
 
-    // Deserialize
-    let db_client = db::NewClient::from(client.clone());
+  //   // Deserialize
+  //   let db_client = db::NewClient::from(client.clone());
 
-    // Execute
-    match db::NewClient::create(db_client, &conn) {
-      Ok(client) => Ok(
-        status::Created(
-          format!("/clients/{}", client.id.to_string()), // Generate the URL
-          Some(Json(Client::from(client))),
-        )
-      ),
-      Err(_err) => Err(
-        status::BadRequest(
-          Some(CLIENT_EXISTS_ERROR)
-        )
-      ),
-    }
-  }
+  //   // Execute
+  //   match db::Client::create(db_client, &conn) {
+  //     Ok(client) => Ok(
+  //       status::Created(
+  //         format!("/clients/{}", client.id.to_string()), // Generate the URL
+  //         Some(Json(Client::from(client))),
+  //       )
+  //     ),
+  //     Err(_err) => Err(
+  //       status::BadRequest(
+  //         Some(CLIENT_EXISTS_ERROR)
+  //       )
+  //     ),
+  //   }
+  // }
 
   #[get("/clients/<id>")]
   fn retrieve(id: &RawStr) -> Option<Json<Client>> {
@@ -182,22 +217,25 @@ mod clients {
     }
   }
 
-  #[delete("/clients/<client>")]
-  fn delete(client: &RawStr) -> Result<status::NoContent, status::NotFound<&'static str>> {
+  #[delete("/clients/<id>")]
+  fn delete(id: &RawStr) -> Result<status::NoContent, status::NotFound<&'static str>> {
 
     let conn = db::connection();
 
-    match db::Client::get(client.to_string(), &conn) {
-      Some(client) => {
-        if client.logout(&conn) {
-          Ok(status::NoContent)
-        }
+    match id.as_str().parse::<i64>() {
+      // Valid integer
+      Ok(id) => {
+        match db::Client::delete(id, &conn) {
+          // Found the client
+          true => Ok(status::NoContent),
 
-        else {
-          Err(status::NotFound("Client does not exist."))
+          // Nope!
+          false => Err(status::NotFound("{\"error\": \"Client does not exist.\"}")),
         }
       },
-      None => Err(status::NotFound("Client does not exist.")),
+
+      // Not a valid integer
+      Err(_) => Err(status::NotFound("{\"error\": \"Invalid input.\"}")),
     }
   }
 
