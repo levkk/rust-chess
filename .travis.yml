@@ -2,5 +2,8 @@ language: rust
 rust:
   - nightly
 cache: cargo
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install libglfw3-dev -y
 script:
   - cargo build --verbose --all
