@@ -5,6 +5,7 @@ rust:
 cache: cargo
 before_install:
   - sudo apt-get update
-  - sudo apt-get install libglfw3-dev -y
+  - sudo apt-get install libglfw3-dev -y # And all dependencies
 script:
-  - cargo build --verbose --all
+  - cargo build # Test dev build
+  - cargo test

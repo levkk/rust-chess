@@ -468,7 +468,7 @@ mod tests {
 
   #[test]
   fn test_window_functions() {
-    let (gui_sender, _gui_receiver): (Sender<(usize, usize)>, Receiver<(usize, usize)>) = channel();
+    let (gui_sender, _gui_receiver): (Sender<String>, Receiver<String>) = channel();
     let window = Window::new(256, 100, gui_sender);
 
     let (x, y) = window.map_window_to_gl(128, 50);

@@ -489,6 +489,6 @@ mod tests {
   fn test_board_position_to_notation() {
     let position = (0, 0);
 
-    assert_eq!(String::from("A0"), Board::board_position_to_notation(position));
+    assert_eq!(String::from("A8"), Board::position_to_notation(position));
   }
 }
