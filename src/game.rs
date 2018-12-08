@@ -20,6 +20,7 @@ use std::io::prelude::*;
 
 // Game board
 use board::Board;
+use board::Color;
 use client::Client;
 use protocol::Message;
 use gui::Window;
@@ -39,8 +40,8 @@ impl Game {
   /// Create a new game
   ///
   /// Return: Game
-  pub fn new() -> Game {
-    let board = Board::new();
+  pub fn new(my_color: Color) -> Game {
+    let board = Board::new(my_color);
 
     Game{
       board,
@@ -55,7 +56,7 @@ impl Game {
   /// are not necessarily since we know what pieces are on the board already.)
   ///
   /// Return: Result<(), &'static str>
-  pub fn make_move(&mut self, notation: &str) -> Result<(), &'static str> {
+  pub fn make_move(&mut self, notation: &str, ignore_ownership: bool) -> Result<(), &'static str> {
     let notation = notation.to_uppercase();
 
     if notation.len() != 4 {
@@ -75,7 +76,7 @@ impl Game {
       let from = &notation[0..2];
       let to = &notation[2..4];
 
-      self.board.make_move(from, to)
+      self.board.make_move(from, to, ignore_ownership)
     }
   }
 
@@ -147,7 +148,7 @@ impl Game {
 
     // GUI
     let handle = thread::spawn(move || {
-      let mut window = Window::new(756, 756, gui_sender);
+      let mut window = Window::new(756, 756, gui_sender, Color::White);
       // let mut board = Board::new();
 
       while !window.should_close() {
@@ -189,33 +190,24 @@ impl Game {
           break;
         }
 
-        board_sender.send(self.board.clone()).unwrap();
-
-
         // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client, &gui_receiver) {
+        if self.my_turn(&mut client, &gui_receiver, &board_sender) {
           close_sender.send(true).unwrap();
           break;
         }
-
-        board_sender.send(self.board.clone()).unwrap();
       }
 
       else {
         // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client, &gui_receiver) {
+        if self.my_turn(&mut client, &gui_receiver, &board_sender) {
           close_sender.send(true).unwrap();
           break;
         }
-
-        board_sender.send(self.board.clone()).unwrap();
 
         if self.other_player_turn(&mut client, &board_sender) {
           close_sender.send(true).unwrap();
           break;
         }
-
-        board_sender.send(self.board.clone()).unwrap();
       }
     }
 
@@ -223,48 +215,54 @@ impl Game {
     handle.join().unwrap();
   }
 
-  fn my_turn(&mut self, client: &mut Client, gui_receiver: &Receiver<String>) -> bool {
+  fn my_turn(&mut self, client: &mut Client, gui_receiver: &Receiver<String>, board_sender: &Sender<Board>) -> bool {
     // Loop until a valid move is made or we exit
     let mut should_exit = false;
 
     let mut input = String::new();
-    let mut received_input = false;
 
-    while !received_input {
-      match gui_receiver.recv_timeout(Duration::from_millis(100)) {
-        Ok(gui_input) => {
-          received_input = true;
-          input = gui_input;
-        },
-        Err(_) => (), // Received nothing yet
-      };
-    }
+    loop {
+      let mut received_input = false;
 
-    if input.as_str() == "exit" {
+      while !received_input {
+        match gui_receiver.recv_timeout(Duration::from_millis(100)) {
+          Ok(gui_input) => {
+            received_input = true;
+            input = gui_input;
+          },
+          Err(_) => (), // Received nothing yet
+        };
+      }
 
-      client.send_message(Message::Bye, "");
+      if input.as_str() == "exit" {
 
-      should_exit = true;
-    }
+        client.send_message(Message::Bye, "");
 
-    else {
-      // Make move
-      match self.make_move(&input) {
-        Ok(_) => {
-          // Tell the other player about it
-          client.send_message(Message::MakeMove, &input);
+        should_exit = true;
+      }
 
-          // Print board
-          println!("\n\r{}\n\r", self);
-        },
+      else {
+        // Make move
+        match self.make_move(&input, false) {
+          Ok(_) => {
+            // Tell the other player about it
+            client.send_message(Message::MakeMove, &input);
 
-        Err(err) => {
-          println!("{}", err);
-          println!("{}", input);
-        }
-      };
+            // Print board
+            println!("\n\r{}\n\r", self);
+            break;
+          },
 
-      should_exit = false;
+          Err(err) => {
+            println!("{}", err);
+            println!("{}", input);
+            
+          }
+        };
+
+        board_sender.send(self.board.clone());
+        should_exit = false;
+      }
     }
 
     should_exit
@@ -286,7 +284,7 @@ impl Game {
         // Other player is making a move
         Message::MakeMove => {
           // Make the move on our board
-          match self.make_move(&msg_payload) {
+          match self.make_move(&msg_payload, true) {
             Ok(_) => { 
               // Print board
               println!("\n\r{}\n\r", self);
@@ -355,17 +353,17 @@ impl fmt::Display for Game {
 #[cfg(test)]
 mod test {
   // Game
-  use game::Game;
+  use super::*;
 
   #[test]
   fn test_save_load() {
-    let mut game = Game::new();
+    let mut game = Game::new(Color::White);
 
-    let _ = game.make_move("e2e4");
+    let _ = game.make_move("e2e4", false);
 
     let _ = game.save("test.json");
 
-    let mut game2 = Game::new();
+    let mut game2 = Game::new(Color::White);
 
     let _ = game2.load("test.json");
   }

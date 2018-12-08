@@ -21,6 +21,7 @@ pub struct Client {
   // in_game: bool,
   // color: Color,
   pub host: bool,
+  name: String,
 }
 
 impl Client {
@@ -46,7 +47,7 @@ impl Client {
     }
 
     else if server.starts_with("http://") {
-      let http_client = match HttpConnection::new(&server, "my_name") {
+      let http_client = match HttpConnection::new(&server, "my_very_random_name_1") {
         Ok(client) => client,
         Err(err) => panic!("Could not connect to server: {}", err),
       };
@@ -62,6 +63,7 @@ impl Client {
       // server: String::from(server),
       connection,
       host: false,
+      name: String::default(),
 
       // color: Color::Nil,
     }
@@ -92,6 +94,7 @@ impl Client {
     Client{
       connection,
       host: true,
+      name: String::default(),
     }
   }
 
@@ -185,6 +188,10 @@ impl Client {
         Err(String::from("Got message matching nothing."))
       },
     }
+  }
+
+  pub fn set_name(&mut self, name: &str) {
+    self.name = String::from(name);
   }
 }
 

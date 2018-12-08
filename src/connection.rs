@@ -226,9 +226,12 @@ pub struct HttpConnection {
   endpoint: String,
   client: reqwest::Client,
   name: String,
+  location: String,
   previous_message: String,
   other_player: String,
 }
+
+use reqwest::header;
 
 impl HttpConnection {
   pub fn new(endpoint: &str, client_name: &str) -> Result<HttpConnection, String> {
@@ -239,19 +242,25 @@ impl HttpConnection {
       "name": client_name,
     });
 
-    let result = match client.post(&join_url).json(&body).send() {
-      Ok(mut res) => res.text().unwrap(),
+    let location = match client.post(&join_url).json(&body).send() {
+      Ok(mut res) => {
+        let headers = res.headers().clone();
+        println!("{:?}", headers.clone());
+        let location_header = String::from(headers[header::LOCATION].to_str().unwrap());
+        location_header
+      }
       Err(err) => return Err(err.to_string()),
     };
 
-    println!("Connection: {}", result);
+    // println!("Connection: {}", location);
 
     Ok(HttpConnection{
       endpoint: String::from(endpoint),
       client,
+      location,
       name: String::from(client_name),
       previous_message: String::from(""),
-      other_player: String::from("one"),
+      other_player: String::from("/clients/14"),
     })
   }
 }
@@ -259,7 +268,9 @@ impl HttpConnection {
 impl Connection for HttpConnection {
   fn send_message(&mut self, message: &str) -> bool {
     println!("Sending http message: {}", message);
-    self.client.post(format!("{}/clients/{}/message", self.endpoint, self.name).as_str())
+    let endpoint = format!("{}/{}/message", self.endpoint, self.location);
+    println!("Endpoint: {}", endpoint);
+    self.client.post(&endpoint)
       .json(&json!({"message": message}))
       .send()
     .unwrap();
@@ -268,11 +279,11 @@ impl Connection for HttpConnection {
   }
 
   fn wait_for_message(&mut self) -> Result<String, String> {
-    let mut attempts = RETRY_ATTEMPTS_HTTP;
+    // let mut attempts = RETRY_ATTEMPTS_HTTP;
 
     loop {
       let mut response = self.client
-        .get(&format!("{}/clients/{}", self.endpoint, self.other_player))
+        .get(&format!("{}/{}", self.endpoint, self.other_player))
         .send()
       .unwrap();
 

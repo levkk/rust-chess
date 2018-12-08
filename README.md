@@ -13,6 +13,13 @@ This program is using native OpenGL and GLFW. So, you'll need pretty much everyt
 $ pkg-config --libs --static gl glfw3
 ```
 
+#### Ubuntu 18.04+
+Just installing GLFW is enough:
+
+```
+apt-get install -y libglfw3-dev
+```
+
 ### Windows
 Same, you'll need your graphics card OpenGL driver and GLFW installed. Never tried to compile a Rust program with OpenGL
 bindings on Windows, so let me know if it works. :)

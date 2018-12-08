@@ -118,62 +118,6 @@ impl From<Client> for db::NewClient {
   }
 }
 
-macro_rules! rest {
-  ($base_url:tt, $QueryableObject:path, $InsertableObject:path, $Serializer:path) => (
-    
-    #[post($base_url, format = "application/json", data = "<data>")]
-    pub fn create(
-      data: Json<$Serializer>,
-    ) -> Result<status::Created<Json<$Serializer>>, status::BadRequest<&'static str>> {
-      
-      // Establish connection to DB
-      let conn = db::connection();
-
-      // Deserialize
-      let db_client = <$InsertableObject>::from(data.clone());
-
-      // Execute
-      match <$QueryableObject>::create(db_client, &conn) {
-        Ok(client) => Ok(
-          status::Created(
-            format!("/clients/{}", client.id.to_string()), // Generate the URL
-            Some(Json(<$Serializer>::from(client))),
-          )
-        ),
-        Err(_err) => Err(
-          status::BadRequest(
-            Some(CLIENT_EXISTS_ERROR)
-          )
-        ),
-      }
-    }
-
-    const RETRIEVE_URL: &str = concat!($base_url, "/<id>");
-
-    #[get(<concat!("sdf", "/sdf")>)]
-    pub fn retrieve(id: &RawStr) -> Option<Json<$Serializer>> {
-      let conn = db::connection();
-
-      match id.as_str().parse::<i64>() {
-        // Valid integer
-        Ok(id) => {
-          match <$QueryableObject>::retrieve(id, &conn) {
-            // Found the client
-            Some(client) => Some(Json(<$Serializer>::from(client))),
-
-            // Nope!
-            None => None,
-          }
-        },
-
-        // Not a valid integer
-        Err(_) => None,
-      }
-    }
-  );
-}
-
-
 mod clients {
   use super::*;
 
@@ -188,7 +132,53 @@ mod clients {
     Json(all_clients)
   }
 
-  rest!("/clients", db::Client, db::NewClient, Client);
+  #[post("/clients", format = "application/json", data = "<data>")]
+  pub fn create(
+    data: Json<Client>,
+  ) -> Result<status::Created<Json<Client>>, status::BadRequest<&'static str>> {
+    
+    // Establish connection to DB
+    let conn = db::connection();
+
+    // Deserialize
+    let db_client = db::NewClient::from(data.clone());
+
+    // Execute
+    match db::Client::create(db_client, &conn) {
+      Ok(client) => Ok(
+        status::Created(
+          format!("/clients/{}", client.id.to_string()), // Generate the URL
+          Some(Json(<Client>::from(client))),
+        )
+      ),
+      Err(_err) => Err(
+        status::BadRequest(
+          Some(CLIENT_EXISTS_ERROR)
+        )
+      ),
+    }
+  }
+
+  #[get("/clients/<id>")]
+  pub fn retrieve(id: &RawStr) -> Option<Json<Client>> {
+    let conn = db::connection();
+
+    match id.as_str().parse::<i64>() {
+      // Valid integer
+      Ok(id) => {
+        match <db::Client>::retrieve(id, &conn) {
+          // Found the client
+          Some(client) => Some(Json(<Client>::from(client))),
+
+          // Nope!
+          None => None,
+        }
+      },
+
+      // Not a valid integer
+      Err(_) => None,
+    }
+  }
 
   // #[post("/clients", format = "application/json", data = "<client>")]
   // fn create(

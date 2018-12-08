@@ -20,6 +20,7 @@ use models::piece::Piece as PieceModel;
 
 // chess board
 use board::Board;
+use board::Color;
 
 // Std
 use std::ffi::CString;
@@ -106,7 +107,7 @@ pub struct Window {
 
 impl Window {
   /// Initialize graphics
-  pub fn new(width: u32, height: u32, gui_sender: Sender<String>) -> Window {
+  pub fn new(width: u32, height: u32, gui_sender: Sender<String>, my_color: Color) -> Window {
 
     // Start-up OpenGL
     let (glfw, window, events) = Window::init_glfw(width, height);
@@ -127,7 +128,7 @@ impl Window {
       camera: camera::Camera::default(),
       program,
       models: Vec::new(),
-      board: Board::new(),
+      board: Board::new(my_color),
       should_close: false,
       gui_sender,
       dragging: false,
@@ -175,6 +176,9 @@ impl Window {
     #[cfg(target_os = "macos")]
     glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
+    // Anti-aliasing
+    glfw.window_hint(glfw::WindowHint::Samples(Some(4)));
+
     // Create window
     let (mut window, events) = glfw.create_window(width, height, "Rust Chess", glfw::WindowMode::Windowed)
     .expect("Failed to create GLFW window.");
@@ -190,13 +194,17 @@ impl Window {
     // ---------------------------------------
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
-    // Depyth buffer
     unsafe {
+      // Depyth buffer
       gl::ClearDepth(1.0);
       gl::DepthFunc(gl::LESS);
       gl::Enable(gl::DEPTH_TEST);
 
+      // Size of points (for debuggin)
       gl::PointSize(10.0);
+
+      // Anti-aliasing
+      gl::Enable(gl::MULTISAMPLE);
     }
     
     (Box::new(glfw), Box::new(window), Box::new(events))
@@ -469,7 +477,7 @@ mod tests {
   #[test]
   fn test_window_functions() {
     let (gui_sender, _gui_receiver): (Sender<String>, Receiver<String>) = channel();
-    let window = Window::new(256, 100, gui_sender);
+    let window = Window::new(256, 100, gui_sender, Color::White);
 
     let (x, y) = window.map_window_to_gl(128, 50);
 

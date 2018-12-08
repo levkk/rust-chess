@@ -83,11 +83,25 @@ impl fmt::Display for Piece {
 
 /// Holds the color of the piece (black or white)
 /// Nil is used for empty cells that have no pieces.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub enum Color {
   Black,
   White,
   Nil,
+}
+
+impl fmt::Display for Color {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let color = match *self {
+      Color::White => "W",
+      Color::Black => "B",
+      Color::Nil => "N",
+    };
+
+    write!(f, "{}", color);
+
+    Ok(())
+  }
 }
 
 /// Cell holds the piece and its color.
@@ -129,18 +143,20 @@ impl fmt::Display for Cell {
 pub struct Board {
   /// Multidimensional vector holding the board cells.
   board: Vec<Vec<Cell>>,
+  my_color: Color,
 }
 
 impl Board {
   /// Standard Self::new method
   /// Return an empty chess board (no pieces placed anywhere).
-  pub fn new() -> Self {
+  pub fn new(my_color: Color) -> Self {
     // Create board
     let mut board = Board{
       board: vec![vec![Cell{
         piece: GamePiece::new(Piece::Nil),
         color: Color::Nil,
-      }; 8]; 8]
+      }; 8]; 8],
+      my_color,
     };
 
     // Place pawns
@@ -228,15 +244,20 @@ impl Board {
   /// `to`: tuple (2) of coordinates
   ///
   /// Return: std::Result<(), 'static str>
-  fn move_piece(&mut self, from: (usize, usize), to: (usize, usize)) -> Result<(), &'static str> {
-
+  fn move_piece(&mut self, from: (usize, usize), to: (usize, usize), ignore_ownership: bool) -> Result<(), &'static str> {
     // Expand tuples
     let (f_x, f_y) = from;
     let (t_x, t_y) = to;
 
+    println!("{} {}", self.board[f_x][f_y], self.my_color);
+
     // Check if piece exists
     if self.board[f_x][f_y].piece.piece_type == Piece::Nil {
       return Err("This board cell is empty.");
+    }
+
+    else if !ignore_ownership && self.board[f_x][f_y].color != self.my_color {
+      return Err("You can only move your own pieces.");
     }
 
     // Check if move is valid
@@ -340,7 +361,7 @@ impl Board {
   /// Parameters:
   /// `from`: &str (e.g. E6)
   /// `to`: &str (e.g. B6)
-  pub fn make_move(&mut self, from: &str, to: &str) -> Result<(), &'static str> {
+  pub fn make_move(&mut self, from: &str, to: &str, ignore_ownership: bool) -> Result<(), &'static str> {
     assert_eq!(from.len(), 2);
     assert_eq!(to.len(), 2);
 
@@ -354,7 +375,7 @@ impl Board {
       Self::number_to_row(&to[1..])
     );
 
-    self.move_piece(from, to)
+    self.move_piece(from, to, ignore_ownership)
   }
 
 
