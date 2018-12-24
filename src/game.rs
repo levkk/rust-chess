@@ -130,6 +130,7 @@ impl Game {
 
   /// Start the game
   pub fn start(&mut self) {
+    println!("Client can be one of: client, host, self, http");
     print!(" Client > ");
 
     let mut client = match helpers::input().as_ref() {
