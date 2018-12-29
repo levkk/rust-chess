@@ -98,7 +98,7 @@ impl fmt::Display for Color {
       Color::Nil => "N",
     };
 
-    write!(f, "{}", color);
+    write!(f, "{}", color)?;
 
     Ok(())
   }
@@ -503,6 +503,7 @@ impl fmt::Display for Board {
   }
 }
 
+#[cfg(test)]
 mod tests {
   use super::*;
 

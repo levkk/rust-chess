@@ -26,7 +26,7 @@ use board::Color;
 use std::ffi::CString;
 use std::ptr;
 use std::str;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 
 
 const vertex_shader_source: &str = r#"
@@ -109,14 +109,20 @@ impl Window {
   /// Initialize graphics
   pub fn new(width: u32, height: u32, gui_sender: Sender<String>, my_color: Color) -> Window {
 
+    println!("Starting window");
+
     // Start-up OpenGL
     let (glfw, window, events) = Window::init_glfw(width, height);
+
+    println!("glfw");
     
     // Shaders
     let program = match Window::init_shaders() {
       Ok(program) => program,
       Err(err) => panic!("Shader error: {}", err),
     };
+
+    println!("shader");
 
     // Window
     let mut window = Window{
@@ -135,6 +141,8 @@ impl Window {
     };
 
     window.draw();
+
+    println!("draw");
 
     window
   }
@@ -318,6 +326,10 @@ impl Window {
     }
   }
 
+  //
+  // Attempt at using models imported from the interwebs...
+  // Left here for future use.
+  //
   // fn draw_something(&mut self) {
     // let models = model_loader::load("/home/lev/Projects/rust-chess/src/models/chess.obj");
 
@@ -367,6 +379,7 @@ impl Window {
       self.camera.process_keyboard(camera::CameraMovement::Backward, 0.1);
     }
 
+    // Start the drag-and-drop
     if self.window.get_mouse_button(MouseButton::Button1) == Action::Press {
       let (x_gl, y_gl) = self.map_window_to_gl(x as i32, y as i32);
 
@@ -395,33 +408,39 @@ impl Window {
           break;
         }
       }
-
-
-      //  self.models[3].dragging(x_gl, y_gl);
     }
 
     if self.window.get_mouse_button(MouseButton::Button1) == Action::Release {
+      // Get GL coordinates from the mouse coordinates
       let (x_gl, y_gl) = self.map_window_to_gl(x as i32, y as i32);
 
-      // println!("Releasing {} {}", x_gl, y_gl);
-
       for model in self.models.iter_mut() {
+
+        // Found the chess piece we are dragging
         if model.is_dragging() {
+
+          // Where did we come from
           let current_position = model.board_position();
+
+          // Where we arrived
           let future_position = model.calculate_board_position(x_gl, y_gl);
+
+          // Get those two in the board notation
           let from = Board::position_to_notation(current_position);
           let to = Board::position_to_notation(future_position);
+
+          // And construct a valid chess move (e.g. e2e4)
           let notation = from + &to;
+
+          // Send it to the game thread
           self.gui_sender.send(notation).unwrap();
 
-          // println!("{:?} {:?}", current_position, future_position);
-
-          // let notation = Board::board_position_to_notation(current_position) + &Board::board_position_to_notation(future_position);
-
-          // self.gui_sender.send(notation);
+          // The chess piece is dropped now
           model.dropping(x_gl, y_gl);
+
+          // And we are not dragging anymore
           self.dragging = false;
-          // self.gui_sender.send(Board::board_position_to_notation(x_board, y_board));
+
           break;
         }
       }
@@ -473,15 +492,20 @@ impl Drop for Window {
 mod tests {
 
   use super::*;
+  use std::sync::mpsc::channel;
 
   #[test]
   fn test_window_functions() {
-    let (gui_sender, _gui_receiver): (Sender<String>, Receiver<String>) = channel();
-    let window = Window::new(256, 100, gui_sender, Color::White);
+    //
+    // My mac really hates running OpenGL in a separate thread...causes memory errors.
+    //
+    
+    // let (gui_sender, _gui_receiver): (Sender<String>, Receiver<String>) = channel();
+    // let window = Window::new(256, 100, gui_sender, Color::White);
 
-    let (x, y) = window.map_window_to_gl(128, 50);
+    // let (x, y) = window.map_window_to_gl(128, 50);
 
-    assert_eq!(x, 0.0);
-    assert_eq!(y, 0.0);
+    // assert_eq!(x, 0.0);
+    // assert_eq!(y, 0.0);
   }
 }

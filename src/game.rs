@@ -28,6 +28,8 @@ use gui::Window;
 // Helpers
 use helpers;
 
+const MPSC_TIMEOUT_MS: u64 = 10; 
+
 /// Game
 ///
 /// Parameters:
@@ -36,7 +38,7 @@ pub struct Game {
   board: Board,
 }
 
-impl Game {
+impl <'a>Game {
   /// Create a new game
   ///
   /// Return: Game
@@ -128,95 +130,115 @@ impl Game {
     self.deserialize(&contents);
   }
 
+  pub fn get_board(&self) -> Board {
+    return self.board.clone()
+  }
+
   /// Start the game
-  pub fn start(&mut self) {
-    println!("Client can be one of: client, host, self, http");
-    print!(" Client > ");
-
-    let mut client = match helpers::input().as_ref() {
-      "client" => self.build_tcp_client(),
-      "host" => self.build_tcp_host(),
-      "self" => Client::new("self"),
-      "http" => self.build_http_client(),
-      other => panic!("Unknown client chosen: {}", other),
-    };
-
-    println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
-
+  pub fn start() {
+    // Board channel is for sending the board state to the GUI
+    // and the game thread
     let (board_sender, board_receiver): (Sender<Board>, Receiver<Board>) = channel();
+
+    // Close channel is for telling the GUI to close if the game said so
     let (close_sender, close_receiver): (Sender<bool>, Receiver<bool>) = channel();
+
+    // GUI channel is for the GUI to send us moves made through it
     let (gui_sender, gui_receiver): (Sender<String>, Receiver<String>) = channel();
 
-    // GUI
+    // All game logic runs in a separate thread; GUI runs in the main thread.
     let handle = thread::spawn(move || {
-      let mut window = Window::new(756, 756, gui_sender, Color::White);
-      // let mut board = Board::new();
+      //
+      // This is valid client selection, but let's default to self for now
+      //
 
-      while !window.should_close() {
+      // print!(" Client > ");
+      // let mut client = match helpers::input().as_ref() {
+      //   "client" => Game::build_tcp_client(),
+      //   "host" => Game::build_tcp_host(),
+      //   "self" => Client::new("self"),
+      //   "http" => Game::build_http_client(),
+      //   other => panic!("Unknown client chosen: {}", other),
+      // };
 
-        // Get the new board
-        match board_receiver.recv_timeout(Duration::from_millis(100)) {
-          Ok(new_board) => {
-            // Update board with new or old board
-            window.update_board(new_board.clone());
+      let mut client = Client::new("self");
+      let mut game = Self::new(Color::White);
+
+      println!("\r\nWelcome to Rust Chess!\r\nType 'exit' to quit the game.");
+
+      // Game loop
+      loop { 
+
+        // Print the board to the terminal (helps debugging and whatnot)
+        println!("\n\r{}\n\r", game);
+
+        // Initial render of the chess board
+        board_sender.send(game.get_board()).unwrap();
+
+        // We are hosting
+        if client.host {
+          if game.other_player_turn(&mut client, &board_sender) {
+            close_sender.send(true).unwrap();
+            break;
           }
-          Err(_) => (),
-        };
 
-        // Close the GUI, maybe
-        match close_receiver.recv_timeout(Duration::from_millis(10)) {
-          Ok(close) => {
-            if close {
-              window.close();
-            }
-          },
-          Err(_) => (),
-        };
+          // Loop until a valid move is made or we exit
+          if game.my_turn(&mut client, &gui_receiver, &board_sender) {
+            close_sender.send(true).unwrap();
+            break;
+          }
+        }
 
-        // And render it
-        window.draw();
+        // The other player is hosting
+        else {
+          // Loop until a valid move is made or we exit
+          if game.my_turn(&mut client, &gui_receiver, &board_sender) {
+            close_sender.send(true).unwrap();
+            break;
+          }
+
+          if game.other_player_turn(&mut client, &board_sender) {
+            close_sender.send(true).unwrap();
+            break;
+          }
+        }
       }
     });
 
-    // Draw the initial board
-    board_sender.send(self.board.clone()).unwrap();
+    // OpenGL GUI
+    let mut window = Window::new(756, 756, gui_sender, Color::White);
 
-    loop {
+    while !window.should_close() {
 
-      println!("\n\r{}\n\r", self);
-
-      if client.host {
-        if self.other_player_turn(&mut client, &board_sender) {
-          close_sender.send(true).unwrap();
-          break;
+      // Get the new board
+      match board_receiver.recv_timeout(Duration::from_millis(MPSC_TIMEOUT_MS)) {
+        Ok(new_board) => {
+          // Update board with new or old board
+          window.update_board(new_board.clone());
+          println!("New board");
         }
+        Err(_) => (),
+      };
 
-        // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client, &gui_receiver, &board_sender) {
-          close_sender.send(true).unwrap();
-          break;
-        }
-      }
+      // Close the GUI, maybe
+      match close_receiver.recv_timeout(Duration::from_millis(MPSC_TIMEOUT_MS)) {
+        Ok(close) => {
+          if close {
+            window.close();
+            println!("Close window");
+          }
+        },
+        Err(_) => (),
+      };
 
-      else {
-        // Loop until a valid move is made or we exit
-        if self.my_turn(&mut client, &gui_receiver, &board_sender) {
-          close_sender.send(true).unwrap();
-          break;
-        }
-
-        if self.other_player_turn(&mut client, &board_sender) {
-          close_sender.send(true).unwrap();
-          break;
-        }
-      }
+      window.draw();
     }
 
-    // Wait for the GUI to terminate
+    // Wait for the game thread to exist
     handle.join().unwrap();
   }
 
-  fn my_turn(&mut self, client: &mut Client, gui_receiver: &Receiver<String>, board_sender: &Sender<Board>) -> bool {
+  pub fn my_turn(&mut self, client: &mut Client, gui_receiver: &Receiver<String>, board_sender: &Sender<Board>) -> bool {
     // Loop until a valid move is made or we exit
     let mut should_exit = false;
 
@@ -226,7 +248,7 @@ impl Game {
       let mut received_input = false;
 
       while !received_input {
-        match gui_receiver.recv_timeout(Duration::from_millis(100)) {
+        match gui_receiver.recv_timeout(Duration::from_millis(MPSC_TIMEOUT_MS)) {
           Ok(gui_input) => {
             received_input = true;
             input = gui_input;
@@ -261,7 +283,7 @@ impl Game {
           }
         };
 
-        board_sender.send(self.board.clone());
+        board_sender.send(self.board.clone()).unwrap();
         should_exit = false;
       }
     }
@@ -269,13 +291,16 @@ impl Game {
     should_exit
   }
 
-  fn other_player_turn(&mut self, client: &mut Client, board_sender: &Sender<Board>) -> bool {
+  pub fn other_player_turn(&mut self, client: &mut Client, board_sender: &Sender<Board>) -> bool {
     let mut should_exit = false;
 
     // Loop until a valid move is received
     loop {
       // Wait for other player to make move
-      let (msg_type, msg_payload) = client.wait_for_message();
+      let (msg_type, msg_payload) = match client.get_message() {
+        Ok((msg_type, msg_payload)) => (msg_type, msg_payload),
+        Err(_err) => return false,
+      };
 
       match msg_type {
 
@@ -313,7 +338,8 @@ impl Game {
   }
 
   /// Build the TCP Client
-  fn build_tcp_client(&self) -> Client {
+  #[allow(dead_code)]
+  fn build_tcp_client() -> Client {
     print!("Remote address > ");
 
     let addr = helpers::input();
@@ -322,7 +348,8 @@ impl Game {
   }
 
   /// Build the TCP host
-  fn build_tcp_host(&self) -> Client {
+  #[allow(dead_code)]
+  fn build_tcp_host() -> Client {
     print!("Local address > ");
 
     let addr = helpers::input();
@@ -330,7 +357,9 @@ impl Game {
     Client::host(&addr)
   }
 
-  fn build_http_client(&self) -> Client {
+  /// Build the HTTP client
+  #[allow(dead_code)]
+  fn build_http_client() -> Client {
     print!("Remove address > ");
 
     let addr = helpers::input();
