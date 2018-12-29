@@ -166,8 +166,8 @@ impl Model for Piece {
   }
 }
 
+#[cfg(test)]
 mod tests {
-
   use super::*;
 
   #[test]

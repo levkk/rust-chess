@@ -42,10 +42,10 @@ pub mod gui;
 pub mod models;
 
 use game::Game;
-use board::Color;
 
 pub fn init() {
-  let mut game = Game::new(Color::White);
+  // let mut game = Game::new(Color::White);
 
-  game.start();
+  // game.start();
+  Game::start();
 }

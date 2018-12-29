@@ -4,7 +4,7 @@ extern crate serde_json;
 use serde_json::value::Value as JsonValue;
 
 // Networking
-use std::{net, thread, time, collections};
+use std::{net, thread, time};
 use std::io::{Read, Write};
 
 // String
@@ -20,16 +20,14 @@ use helpers::input;
 use protocol::Message;
 
 // Retry attempts for http connection
-const RETRY_ATTEMPTS_HTTP: i32 = 5;
-
-
+// const RETRY_ATTEMPTS_HTTP: i32 = 5;
 
 
 /// Connection interface
-pub trait Connection {
+pub trait Connection: Send {
   fn send_message(&mut self, message: &str) -> bool;
   fn wait_for_message(&mut self) -> Result<String, String>;
-  fn get_message(&self) -> Result<String, String>;
+  fn get_message(&mut self) -> Result<String, String>;
 }
 
 /// Echo connection
@@ -57,7 +55,7 @@ impl Connection for EchoConnection {
   }
 
   ///
-  fn get_message(&self) -> Result<String, String> {
+  fn get_message(&mut self) -> Result<String, String> {
     Ok(String::from("Nothing"))
   }
 }
@@ -175,7 +173,7 @@ impl Connection for TcpConnection {
   }
 
   ///
-  fn get_message(&self) -> Result<String, String> {
+  fn get_message(&mut self) -> Result<String, String> {
     Ok(String::from(""))
   }
 }
@@ -217,8 +215,8 @@ impl Connection for SelfConnection {
     }
   }
 
-  fn get_message(&self) -> Result<String, String> {
-    Ok(String::from("Nothing"))
+  fn get_message(&mut self) -> Result<String, String> {
+    self.wait_for_message()
   }
 }
 
@@ -321,14 +319,14 @@ impl Connection for HttpConnection {
     }
   }
 
-  fn get_message(&self) -> Result<String, String> {
+  fn get_message(&mut self) -> Result<String, String> {
     Ok(String::from("Nothing"))
   }
 }
 
 impl Drop for HttpConnection {
   fn drop(&mut self) {
-    self.client.delete(&format!("{}/clients/{}", self.endpoint, self.name)).send();
+    self.client.delete(&format!("{}/clients/{}", self.endpoint, self.name)).send().unwrap();
   }
 }
 

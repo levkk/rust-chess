@@ -139,6 +139,14 @@ impl Client {
     self.handle_reply(&message).unwrap()
   }
 
+  /// Async wait_for_message (non-blocking)
+  pub fn get_message(&mut self) -> Result<(Message, String), String> {
+    match self.connection.get_message() {
+      Ok(message) => self.handle_reply(&message),
+      Err(_) => Err(String::from("No message received yet.")),
+    }
+  }
+
   /// Handles peer reply
   ///
   /// Parameters:
