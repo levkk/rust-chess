@@ -17,7 +17,7 @@ $ pkg-config --libs --static gl glfw3
 Just installing GLFW is enough:
 
 ```
-apt-get install -y libglfw3-dev
+apt-get install -y libglfw3-dev cmake libssl-dev libxinerama-dev libxcursor-dev libxi-dev libxxf86vm-dev
 ```
 
 ### Windows
