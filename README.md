@@ -14,7 +14,7 @@ $ pkg-config --libs --static gl glfw3
 ```
 
 #### Ubuntu 18.04+
-Just installing GLFW is enough:
+Install these:
 
 ```
 apt-get install -y libglfw3-dev cmake libssl-dev libxinerama-dev libxcursor-dev libxi-dev libxxf86vm-dev
