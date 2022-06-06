@@ -5,7 +5,7 @@ authors = ["Lev <lev.kokotov@gmail.com>"]
 
 [dependencies]
 colored = "1.6.1"
-regex = "0.2.11"
+regex = "1.5.5"
 lazy_static = "1.1.0"
 serde = "1.0.79"
 serde_derive = "1.0.79"
