@@ -13,7 +13,7 @@ serde_derive = "*"
 chrono = "*"
 
 # Database
-diesel = { version = "1.3.3", features = ["postgres"] }
+diesel = { version = "1.4.6", features = ["postgres"] }
 dotenv = "0.13.0"
 
 # Macros
